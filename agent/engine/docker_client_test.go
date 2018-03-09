@@ -167,6 +167,23 @@ func TestPullImageGlobalTimeout(t *testing.T) {
 	wait.Done()
 }
 
+func TestPullImageInactivityTimeout(t *testing.T) {
+	mockDocker, client, testTime, _, _, done := dockerClientSetup(t)
+	defer done()
+
+	testTime.EXPECT().After(gomock.Any()).AnyTimes()
+	mockDocker.EXPECT().PullImage(&pullImageOptsMatcher{"image:latest"}, gomock.Any()).Return(
+		docker.ErrInactivityTimeout).Times(maximumPullRetries) // expected number of retries
+
+	metadata := client.PullImage("image", nil)
+	if metadata.Error == nil {
+		t.Error("Expected error for pull inactivity timeout")
+	}
+	if metadata.Error.(api.NamedError).ErrorName() != "CannotPullContainerError" {
+		t.Error("Wrong error type")
+	}
+}
+
 func TestPullImage(t *testing.T) {
 	mockDocker, client, testTime, _, _, done := dockerClientSetup(t)
 	defer done()
