@@ -117,6 +117,7 @@ func newAgent(
 	}
 
 	seelog.Info("Loading configuration")
+	seelog.Info("Use small timeout")
 	cfg, err := config.NewConfig(ec2MetadataClient)
 	if err != nil {
 		// All required config values can be inferred from EC2 Metadata,

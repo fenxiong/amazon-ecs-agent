@@ -85,7 +85,7 @@ const (
 
 	// dockerPullInactivityTimeout is the amount of time that we will
 	// wait when the pulling does not progress
-	dockerPullInactivityTimeout = 5 * time.Minute
+	dockerPullInactivityTimeout = 5 * time.Second
 
 	// pullStatusSuppressDelay controls the time where pull status progress bar
 	// output will be suppressed in debug mode
