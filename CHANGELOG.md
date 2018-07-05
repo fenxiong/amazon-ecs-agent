@@ -1,5 +1,7 @@
 # Changelog
 
+## 1.18.x
+
 ## 1.18.0
 * Feature - Configurable container image pull behavior [#1348](https://github.com/aws/amazon-ecs-agent/pull/1348)
 * Bug - Fixed a bug where Docker Version() API never returns by adding a timeout [#1363](https://github.com/aws/amazon-ecs-agent/pull/1363)
