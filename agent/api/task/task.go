@@ -78,7 +78,7 @@ type TaskOverrides struct{}
 
 // Task is the internal representation of a task in the ECS agent
 type Task struct {
-	// Arn is the unique identifer for the task
+	// Arn is the unique identifier for the task
 	Arn string
 	// Overrides are the overrides applied to a task
 	Overrides TaskOverrides `json:"-"`
@@ -92,6 +92,8 @@ type Task struct {
 	ResourcesMapUnsafe resourcetype.ResourcesMap `json:"resources"`
 	// Volumes are the volumes for the task
 	Volumes []TaskVolume `json:"volumes"`
+	// Associations are the available associations for the task.
+	Associations []Association `json:"associations"`
 	// CPU is a task-level limit for compute resources. A value of 1 means that
 	// the task may access 100% of 1 vCPU on the instance
 	CPU float64 `json:"Cpu,omitempty"`

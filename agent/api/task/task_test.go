@@ -729,6 +729,19 @@ func TestTaskFromACS(t *testing.T) {
 				},
 			},
 		},
+		Associations: []*ecsacs.Association{
+			{
+				Containers: []*string{
+					strptr("myName"),
+				},
+				Content: &ecsacs.EncodedString{
+					Encoding: strptr("base64"),
+					Value:    strptr("val"),
+				},
+				Name: strptr("dev1"),
+				Type: strptr("elastic-inference"),
+			},
+		},
 		RoleCredentials: &ecsacs.IAMRoleCredentials{
 			CredentialsId:   strptr("credsId"),
 			AccessKeyId:     strptr("keyId"),
@@ -794,6 +807,19 @@ func TestTaskFromACS(t *testing.T) {
 				Volume: &taskresourcevolume.FSHostVolume{
 					FSSourcePath: "/host/path",
 				},
+			},
+		},
+		Associations: []Association{
+			{
+				Containers: []string{
+					"myName",
+				},
+				Content: EncodedString{
+					Encoding: "base64",
+					Value: "val",
+				},
+				Name: "dev1",
+				Type: "elastic-inference",
 			},
 		},
 		StartSequenceNumber: 42,

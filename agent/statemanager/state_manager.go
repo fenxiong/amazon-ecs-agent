@@ -65,7 +65,8 @@ const (
 	// 12) Deprecate 'TransitionDependencySet' and add new 'TransitionDependenciesMap' in 'apicontainer.Container'
 	// 13) Add 'resources' field to 'api.task.task'
 	// 14) Add 'V3EndpointID' field to 'Container' struct
-	ECSDataVersion = 14
+	// 15) Add 'associations' field to 'apitask.Task'
+	ECSDataVersion = 15
 
 	// ecsDataFile specifies the filename in the ECS_DATADIR
 	ecsDataFile = "ecs_agent_data.json"
