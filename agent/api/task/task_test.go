@@ -809,14 +809,14 @@ func TestTaskFromACS(t *testing.T) {
 				},
 			},
 		},
-		Associations: []Association{
+		Associations: []*Association{
 			{
 				Containers: []string{
 					"myName",
 				},
 				Content: EncodedString{
 					Encoding: "base64",
-					Value: "val",
+					Value:    "val",
 				},
 				Name: "dev1",
 				Type: "elastic-inference",
@@ -1746,4 +1746,60 @@ func TestPostUnmarshalTaskASMDockerAuth(t *testing.T) {
 
 	err := task.PostUnmarshalTask(cfg, credentialsManager, resFields, nil, nil)
 	assert.NoError(t, err)
+}
+
+func TestAssociationsByTypeAndContainer(t *testing.T) {
+	associationType := "elastic-inference"
+	container1 := &apicontainer.Container{
+		Name: "containerName1",
+	}
+	container2 := &apicontainer.Container{
+		Name: "containerName2",
+	}
+	association1 := &Association{
+		Containers: []string{container1.Name},
+		Type:       associationType,
+		Name:       "dev1",
+	}
+	association2 := &Association{
+		Containers: []string{container1.Name, container2.Name},
+		Type:       associationType,
+		Name:       "dev2",
+	}
+	task := &Task{
+		Associations: []*Association{association1, association2},
+	}
+
+	// container 1 is associated with association 1 and association 2
+	assert.Equal(t, task.AssociationsByTypeAndContainer(associationType, container1.Name),
+		[]string{association1.Name, association2.Name})
+	// container 2 is associated with association 2
+	assert.Equal(t, task.AssociationsByTypeAndContainer(associationType, container2.Name),
+		[]string{association2.Name})
+}
+
+func TestAssociationByTypeAndName(t *testing.T) {
+	association1 := &Association{
+		Type: "elastic-inference",
+		Name: "dev1",
+	}
+	association2 := &Association{
+		Type: "other-type",
+		Name: "dev2",
+	}
+	task := &Task{
+		Associations: []*Association{association1, association2},
+	}
+
+	// positive cases
+	association, ok := task.AssociationByTypeAndName("elastic-inference", "dev1")
+	assert.Equal(t, association, association1)
+	association, ok = task.AssociationByTypeAndName("other-type", "dev2")
+	assert.Equal(t, association, association2)
+
+	// negative cases
+	association, ok = task.AssociationByTypeAndName("elastic-inference", "dev2")
+	assert.False(t, ok)
+	association, ok = task.AssociationByTypeAndName("other-type", "dev1")
+	assert.False(t, ok)
 }

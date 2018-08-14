@@ -93,7 +93,7 @@ type Task struct {
 	// Volumes are the volumes for the task
 	Volumes []TaskVolume `json:"volumes"`
 	// Associations are the available associations for the task.
-	Associations []Association `json:"associations"`
+	Associations []*Association `json:"associations"`
 	// CPU is a task-level limit for compute resources. A value of 1 means that
 	// the task may access 100% of 1 vCPU on the instance
 	CPU float64 `json:"Cpu,omitempty"`
@@ -1434,4 +1434,38 @@ func (task *Task) InitializeResources(resourceFields *taskresource.ResourceField
 			resource.Initialize(resourceFields, task.KnownStatusUnsafe, task.DesiredStatusUnsafe)
 		}
 	}
+}
+
+// AssociationByTypeAndContainer gets a list of names of all the associations associated with a container and of a
+// certain type
+func (task *Task) AssociationsByTypeAndContainer(associationType, containerName string) []string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	var associationNames []string
+	for _, association := range task.Associations {
+		if association.Type == associationType {
+			for _, associatedContainerName := range association.Containers {
+				if associatedContainerName == containerName {
+					associationNames = append(associationNames, association.Name)
+				}
+			}
+		}
+	}
+
+	return associationNames
+}
+
+// AssociationByTypeAndName gets an association of a certain type and name
+func (task *Task) AssociationByTypeAndName(associationType, associationName string) (*Association, bool) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	for _, association := range task.Associations {
+		if association.Type == associationType && association.Name == associationName {
+			return association, true
+		}
+	}
+
+	return nil, false
 }
