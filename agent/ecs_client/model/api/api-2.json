@@ -428,7 +428,8 @@
       "errors":[
         {"shape":"ServerException"},
         {"shape":"ClientException"},
-        {"shape":"AccessDeniedException"}
+        {"shape":"AccessDeniedException"},
+        {"shape":"InvalidParameterException"}
       ]
     },
     "UpdateContainerAgent":{
@@ -568,7 +569,15 @@
       "members":{
         "subnets":{"shape":"StringList"},
         "securityGroups":{"shape":"StringList"},
-        "assignPublicIp":{"shape":"AssignPublicIp"}
+        "assignPublicIp":{"shape":"AssignPublicIp"},
+        "networkInterfaceOwner":{
+          "shape":"String",
+          "internalonly":true
+        },
+        "networkInterfaceCredential":{
+          "shape":"String",
+          "internalonly":true
+        }
       }
     },
     "BlockedException":{
@@ -602,7 +611,8 @@
         "registeredContainerInstancesCount":{"shape":"Integer"},
         "runningTasksCount":{"shape":"Integer"},
         "pendingTasksCount":{"shape":"Integer"},
-        "activeServicesCount":{"shape":"Integer"}
+        "activeServicesCount":{"shape":"Integer"},
+        "statistics":{"shape":"Statistics"}
       }
     },
     "ClusterContainsContainerInstancesException":{
@@ -670,7 +680,10 @@
         "reason":{"shape":"String"},
         "networkBindings":{"shape":"NetworkBindings"},
         "networkInterfaces":{"shape":"NetworkInterfaces"},
-        "healthStatus":{"shape":"HealthStatus"}
+        "healthStatus":{
+          "shape":"HealthStatus",
+          "internalonly":true
+        }
       }
     },
     "ContainerDefinition":{
@@ -691,6 +704,10 @@
         "mountPoints":{"shape":"MountPointList"},
         "volumesFrom":{"shape":"VolumeFromList"},
         "linuxParameters":{"shape":"LinuxParameters"},
+        "inferenceDevices":{
+          "shape":"StringList",
+          "internalonly":true
+        },
         "hostname":{"shape":"String"},
         "user":{"shape":"String"},
         "workingDirectory":{"shape":"String"},
@@ -704,7 +721,10 @@
         "dockerLabels":{"shape":"DockerLabelsMap"},
         "ulimits":{"shape":"UlimitList"},
         "logConfiguration":{"shape":"LogConfiguration"},
-        "healthCheck":{"shape":"HealthCheck"}
+        "healthCheck":{
+          "shape":"HealthCheck",
+          "internalonly":true
+        }
       }
     },
     "ContainerDefinitions":{
@@ -797,7 +817,10 @@
         "serviceName":{"shape":"String"},
         "taskDefinition":{"shape":"String"},
         "loadBalancers":{"shape":"LoadBalancers"},
-        "serviceRegistries":{"shape":"ServiceRegistries"},
+        "serviceRegistries":{
+          "shape":"ServiceRegistries",
+          "internalonly":true
+        },
         "desiredCount":{"shape":"BoxedInteger"},
         "clientToken":{"shape":"String"},
         "launchType":{"shape":"LaunchType"},
@@ -865,7 +888,7 @@
         "id":{"shape":"String"},
         "status":{"shape":"String"},
         "taskDefinition":{"shape":"String"},
-        "desiredCount":{"shape":"BoxedInteger"},
+        "desiredCount":{"shape":"Integer"},
         "pendingCount":{"shape":"Integer"},
         "runningCount":{"shape":"Integer"},
         "createdAt":{"shape":"Timestamp"},
@@ -1073,7 +1096,8 @@
         "timeout":{"shape":"BoxedInteger"},
         "retries":{"shape":"BoxedInteger"},
         "startPeriod":{"shape":"BoxedInteger"}
-      }
+      },
+      "internalonly":true
     },
     "HealthStatus":{
       "type":"string",
@@ -1103,6 +1127,23 @@
       "members":{
         "sourcePath":{"shape":"String"}
       }
+    },
+    "InferenceAccelerator":{
+      "type":"structure",
+      "required":[
+        "deviceName",
+        "deviceType"
+      ],
+      "members":{
+        "deviceName":{"shape":"String"},
+        "deviceType":{"shape":"String"}
+      },
+      "internalonly":true
+    },
+    "InferenceAccelerators":{
+      "type":"list",
+      "member":{"shape":"InferenceAccelerator"},
+      "internalonly":true
     },
     "Integer":{"type":"integer"},
     "InvalidParameterException":{
@@ -1427,6 +1468,11 @@
       "type":"list",
       "member":{"shape":"PortMapping"}
     },
+    "Properties":{
+      "type":"list",
+      "member":{"shape":"KeyValuePair"},
+      "internalonly":true
+    },
     "PutAttributesRequest":{
       "type":"structure",
       "required":["attributes"],
@@ -1475,7 +1521,11 @@
         "placementConstraints":{"shape":"TaskDefinitionPlacementConstraints"},
         "requiresCompatibilities":{"shape":"CompatibilityList"},
         "cpu":{"shape":"String"},
-        "memory":{"shape":"String"}
+        "memory":{"shape":"String"},
+        "inferenceAccelerators":{
+          "shape":"InferenceAccelerators",
+          "internalonly":true
+        }
       }
     },
     "RegisterTaskDefinitionResponse":{
@@ -1534,18 +1584,18 @@
         "failures":{"shape":"Failures"}
       }
     },
-    "Scope":{
-      "type":"string",
-      "enum":[
-        "task",
-        "shared"
-      ]
-    },
     "SchedulingStrategy":{
       "type":"string",
       "enum":[
         "REPLICA",
         "DAEMON"
+      ]
+    },
+    "Scope":{
+      "type":"string",
+      "enum":[
+        "task",
+        "shared"
       ]
     },
     "ServerException":{
@@ -1563,9 +1613,12 @@
         "serviceName":{"shape":"String"},
         "clusterArn":{"shape":"String"},
         "loadBalancers":{"shape":"LoadBalancers"},
-        "serviceRegistries":{"shape":"ServiceRegistries"},
+        "serviceRegistries":{
+          "shape":"ServiceRegistries",
+          "internalonly":true
+        },
         "status":{"shape":"String"},
-        "desiredCount":{"shape":"BoxedInteger"},
+        "desiredCount":{"shape":"Integer"},
         "runningCount":{"shape":"Integer"},
         "pendingCount":{"shape":"Integer"},
         "launchType":{"shape":"LaunchType"},
@@ -1609,7 +1662,8 @@
     },
     "ServiceRegistries":{
       "type":"list",
-      "member":{"shape":"ServiceRegistry"}
+      "member":{"shape":"ServiceRegistry"},
+      "internalonly":true
     },
     "ServiceRegistry":{
       "type":"structure",
@@ -1618,7 +1672,8 @@
         "port":{"shape":"BoxedInteger"},
         "containerName":{"shape":"String"},
         "containerPort":{"shape":"BoxedInteger"}
-      }
+      },
+      "internalonly":true
     },
     "Services":{
       "type":"list",
@@ -1644,7 +1699,11 @@
         "containerInstances":{"shape":"StringList"},
         "startedBy":{"shape":"String"},
         "group":{"shape":"String"},
-        "networkConfiguration":{"shape":"NetworkConfiguration"}
+        "networkConfiguration":{"shape":"NetworkConfiguration"},
+        "properties":{
+          "shape":"Properties",
+          "internalonly":true
+        }
       }
     },
     "StartTaskResponse":{
@@ -1653,6 +1712,11 @@
         "tasks":{"shape":"Tasks"},
         "failures":{"shape":"Failures"}
       }
+    },
+    "Statistics":{
+      "type":"list",
+      "member":{"shape":"KeyValuePair"},
+      "internalonly":true
     },
     "StopTaskRequest":{
       "type":"structure",
@@ -1756,7 +1820,10 @@
         "launchType":{"shape":"LaunchType"},
         "platformVersion":{"shape":"String"},
         "attachments":{"shape":"Attachments"},
-        "healthStatus":{"shape":"HealthStatus"}
+        "healthStatus":{
+          "shape":"HealthStatus",
+          "internalonly":true
+        }
       }
     },
     "TaskDefinition":{
@@ -1776,7 +1843,11 @@
         "compatibilities":{"shape":"CompatibilityList"},
         "requiresCompatibilities":{"shape":"CompatibilityList"},
         "cpu":{"shape":"String"},
-        "memory":{"shape":"String"}
+        "memory":{"shape":"String"},
+        "inferenceAccelerators":{
+          "shape":"InferenceAccelerators",
+          "internalonly":true
+        }
       }
     },
     "TaskDefinitionFamilyStatus":{
@@ -1933,6 +2004,10 @@
       "members":{
         "cluster":{"shape":"String"},
         "service":{"shape":"String"},
+        "serviceRegistries":{
+          "shape":"ServiceRegistries",
+          "internalonly":true
+        },
         "desiredCount":{"shape":"BoxedInteger"},
         "taskDefinition":{"shape":"String"},
         "deploymentConfiguration":{"shape":"DeploymentConfiguration"},
