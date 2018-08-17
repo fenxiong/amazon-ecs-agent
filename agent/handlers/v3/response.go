@@ -18,10 +18,12 @@ import (
 	"github.com/pkg/errors"
 )
 
+// AssociationsResponse defines the schema for the associations response JSON object
 type AssociationsResponse struct {
 	Associations []string `json:"Associations"`
 }
 
+// AssociationResponse defines the schema for the association response JSON object
 type AssociationResponse struct {
 	Name     string `json:"Name"`
 	Encoding string `json:"Encoding"`

@@ -172,7 +172,7 @@ test-artifacts-linux: $(LINUX_ARTIFACTS_TARGETS)
 test-artifacts: test-artifacts-windows test-artifacts-linux
 
 # Run our 'test' registry needed for integ and functional tests
-test-registry: netkitten volumes-test squid awscli image-cleanup-test-images fluentd taskmetadata-validator v3-task-endpoint-validator
+test-registry: netkitten volumes-test squid awscli image-cleanup-test-images fluentd taskmetadata-validator v3-task-endpoint-validator elastic-inference-validator
 	@./scripts/setup-test-registry
 
 test-in-docker:
@@ -242,7 +242,7 @@ volumes-test:
 
 # TODO, replace this with a build on dockerhub or a mechanism for the
 # functional tests themselves to build this
-.PHONY: squid awscli fluentd gremlin taskmetadata-validator v3-task-endpoint-validator image-cleanup-test-images ecr-execution-role-image container-health-check-image telemetry-test-image
+.PHONY: squid awscli fluentd gremlin taskmetadata-validator v3-task-endpoint-validator elastic-inference-validator image-cleanup-test-images ecr-execution-role-image container-health-check-image telemetry-test-image
 squid:
 	$(MAKE) -C misc/squid $(MFLAGS)
 
@@ -266,6 +266,9 @@ taskmetadata-validator:
 
 v3-task-endpoint-validator:
 	$(MAKE) -C misc/v3-task-endpoint-validator $(MFLAGS)
+
+elastic-inference-validator:
+	$(MAKE) -C misc/elastic-inference-validator $(MFLAGS)
 
 ecr-execution-role-image:
 	$(MAKE) -C misc/ecr $(MFLAGS)
@@ -326,6 +329,7 @@ clean:
 	-$(MAKE) -C misc/image-cleanup-test-images $(MFLAGS) clean
 	-$(MAKE) -C misc/taskmetadata-validator $(MFLAGS) clean
 	-$(MAKE) -C misc/v3-task-endpoint-validator $(MFLAGS) clean
+	-$(MAKE) -C misc/elastic-inference-validator $(MFLAGS) clean
 	-$(MAKE) -C misc/container-health $(MFLAGS) clean
 	-$(MAKE) -C misc/telemetry $(MFLAGS) clean
 	-rm -f .get-deps-stamp
