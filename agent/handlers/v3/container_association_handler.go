@@ -130,6 +130,6 @@ func writeContainerAssociationResponse(w http.ResponseWriter, taskARN, associati
 		return
 	}
 
-	responseJSON, _ := json.Marshal(associationResponse)
-	utils.WriteJSONToResponse(w, http.StatusOK, responseJSON, utils.RequestTypeContainerAssociation)
+	// associationResponse is assumed to be a valid json string; see comments on newAssociationResponse method for details
+	utils.WriteJSONToResponse(w, http.StatusOK, []byte(associationResponse), utils.RequestTypeContainerAssociation)
 }

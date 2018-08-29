@@ -95,23 +95,11 @@ func TestContainerAssociationResponse(t *testing.T) {
 	defer ctrl.Finish()
 	state := mock_dockerstate.NewMockTaskEngineState(ctrl)
 
-	expectedAssociationResponseMap := map[string]interface{}{
-		"Name":     associationName,
-		"Encoding": associationEncoding,
-		"Value":    associationValue,
-	}
-
-	gomock.InOrder(
-		state.EXPECT().TaskByArn(taskARN).Return(task, true),
-	)
+	state.EXPECT().TaskByArn(taskARN).Return(task, true)
 
 	associationResponse, err := newAssociationResponse(taskARN, associationType, associationName, state)
 	assert.NoError(t, err)
 
-	associationResponseJSON, err := json.Marshal(associationResponse)
-	assert.NoError(t, err)
-
-	associationResponseMap := make(map[string]interface{})
-	json.Unmarshal(associationResponseJSON, &associationResponseMap)
-	assert.Equal(t, expectedAssociationResponseMap, associationResponseMap)
+	// the response is expected to be the same as the association value
+	assert.Equal(t, associationResponse, associationValue)
 }

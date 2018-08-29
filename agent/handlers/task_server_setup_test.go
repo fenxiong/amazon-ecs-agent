@@ -185,11 +185,7 @@ var (
 	expectedAssociationsResponse = v3.AssociationsResponse{
 		Associations: []string{associationName},
 	}
-	expectedAssociationResponse = v3.AssociationResponse{
-		Name:     associationName,
-		Encoding: associationEncoding,
-		Value:    associationValue,
-	}
+	expectedAssociationResponse = associationValue
 )
 
 func init() {
@@ -728,10 +724,7 @@ func TestV3ContainerAssociation(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, recorder.Code)
 
-	var associationResponse v3.AssociationResponse
-	err = json.Unmarshal(res, &associationResponse)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedAssociationResponse, associationResponse)
+	assert.Equal(t, expectedAssociationResponse, string(res))
 }
 
 func TestTaskHTTPEndpointErrorCode404(t *testing.T) {

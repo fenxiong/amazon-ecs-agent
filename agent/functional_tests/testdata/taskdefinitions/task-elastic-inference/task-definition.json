@@ -20,7 +20,7 @@
   "inferenceAccelerators": [
     {
       "deviceName": "device_1",
-      "deviceType": "ei1.fp16.large"
+      "deviceType": "eia.fp16.medium"
     }
   ]
 }

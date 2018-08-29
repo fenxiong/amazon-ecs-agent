@@ -35,19 +35,11 @@ var (
 	// expected list of association names for the test container
 	expectedAssociations               = []string{"device_1"}
 	expectedAssociationsResponseFields = []string{"Associations"}
-	expectedAssociationResponseFields  = []string{"Name", "Encoding", "Value"}
 )
 
 // AssociationsResponse defines the schema for the associations response JSON object
 type AssociationsResponse struct {
 	Associations []string `json:"Associations"`
-}
-
-// AssociationResponse defines the schema for the association response JSON object
-type AssociationResponse struct {
-	Name     string `json:"Name"`
-	Encoding string `json:"Encoding"`
-	Value    string `json:"Value"`
 }
 
 // verify all the field names in the response are what we expected. this is needed because a direct unmarshal
@@ -75,19 +67,6 @@ func verifyAssociatedEIDevice(client *http.Client, containerMetadataBasePath, de
 	}
 
 	fmt.Printf("Received ei association response: %s \n", string(body))
-
-	if err = verifyResponseFieldNames(expectedAssociationResponseFields, body, "association"); err != nil {
-		return err
-	}
-
-	var associationResponse AssociationResponse
-	if err = json.Unmarshal(body, &associationResponse); err != nil {
-		return fmt.Errorf("unable to parse response body: %v", err)
-	}
-
-	if associationResponse.Name != deviceName {
-		return fmt.Errorf("device name not match: tried to get device '%s', but got '%s'", deviceName, associationResponse.Name)
-	}
 
 	return nil
 }

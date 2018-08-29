@@ -23,13 +23,6 @@ type AssociationsResponse struct {
 	Associations []string `json:"Associations"`
 }
 
-// AssociationResponse defines the schema for the association response JSON object
-type AssociationResponse struct {
-	Name     string `json:"Name"`
-	Encoding string `json:"Encoding"`
-	Value    string `json:"Value"`
-}
-
 func newAssociationsResponse(containerID, taskARN, associationType string, state dockerstate.TaskEngineState) (*AssociationsResponse, error) {
 	dockerContainer, ok := state.ContainerByID(containerID)
 	if !ok {
@@ -49,21 +42,22 @@ func newAssociationsResponse(containerID, taskARN, associationType string, state
 	}, nil
 }
 
-func newAssociationResponse(taskARN, associationType, associationName string, state dockerstate.TaskEngineState) (*AssociationResponse, error) {
+// Association response is a string that's assumed to be in valid JSON format, which will be exactly the same as
+// the value of Association.Content.Value (cp is responsible to validate it and deal with it if it's not valid). We
+// don't do any decoding base on the encoding, because the only encoding that cp currently sends us is 'identity';
+// we don't explicitly model the value field as a struct because we don't want to let agent's implementation depends
+// on the payload format of the association (i.e. eia device for now)
+func newAssociationResponse(taskARN, associationType, associationName string, state dockerstate.TaskEngineState) (string, error) {
 	task, ok := state.TaskByArn(taskARN)
 	if !ok {
-		return nil, errors.Errorf("unable to get task from task arn: %s", taskARN)
+		return "", errors.Errorf("unable to get task from task arn: %s", taskARN)
 	}
 
 	association, ok := task.AssociationByTypeAndName(associationType, associationName)
 
 	if !ok {
-		return nil, errors.Errorf("unable to get association from association type %s and association name %s", associationType, associationName)
+		return "", errors.Errorf("unable to get association from association type %s and association name %s", associationType, associationName)
 	}
 
-	return &AssociationResponse{
-		Name:     association.Name,
-		Encoding: association.Content.Encoding,
-		Value:    association.Content.Value,
-	}, nil
+	return association.Content.Value, nil
 }
