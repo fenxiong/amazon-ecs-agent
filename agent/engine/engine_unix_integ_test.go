@@ -765,6 +765,7 @@ check_events:
 	}
 }
 
+// TestDockerStopTimeout tests the container was killed after ECS_CONTAINER_STOP_TIMEOUT
 func TestDockerStopTimeout(t *testing.T) {
 	os.Setenv("ECS_CONTAINER_STOP_TIMEOUT", testDockerStopTimeout.String())
 	defer os.Unsetenv("ECS_CONTAINER_STOP_TIMEOUT")
@@ -778,19 +779,19 @@ func TestDockerStopTimeout(t *testing.T) {
 		t.Errorf("Expect the docker stop timeout read from environment variable when ECS_CONTAINER_STOP_TIMEOUT is set, %v", dockerTaskEngine.cfg.DockerStopTimeout)
 	}
 	testTask := createTestTask("TestDockerStopTimeout")
-	testTask.Containers = append(testTask.Containers, createTestContainer())
-	testTask.Containers[0].Command = []string{"sh", "-c", "while true; do echo `date +%T`; sleep 1s; done;"}
+	testTask.Containers[0].Command = []string{"sh", "-c", "trap 'echo hello' SIGTERM; while true; do echo `date +%T`; sleep 1s; done;"}
 	testTask.Containers[0].Image = testBusyboxImage
 	testTask.Containers[0].Name = "test-docker-timeout"
 
 	go dockerTaskEngine.AddTask(testTask)
 
 	verifyContainerRunningStateChange(t, taskEngine)
+	verifyTaskRunningStateChange(t, taskEngine)
 
 	startTime := ttime.Now()
 	dockerTaskEngine.stopContainer(testTask, testTask.Containers[0])
 
-	verifyContainerRunningStateChange(t, taskEngine)
+	verifyContainerStoppedStateChange(t, taskEngine)
 
 	if ttime.Since(startTime) < testDockerStopTimeout {
 		t.Errorf("Container stopped before the timeout: %v", ttime.Since(startTime))
@@ -818,34 +819,6 @@ func TestStartStopWithSecurityOptionNoNewPrivileges(t *testing.T) {
 	taskUpdate.SetDesiredStatus(apitaskstatus.TaskStopped)
 	go taskEngine.AddTask(taskUpdate)
 
-	verifyContainerStoppedStateChange(t, taskEngine)
-	verifyTaskStoppedStateChange(t, taskEngine)
-}
-
-// TestSerialImagePull tests the serial pull image behavior of the agent
-func TestSerialImagePull(t *testing.T) {
-	taskEngine, done, _ := setupWithDefaultConfig(t)
-	defer done()
-
-	// Force enable serial pull
-	dockerTaskEngine, ok := taskEngine.(*DockerTaskEngine)
-	require.True(t, ok)
-	dockerTaskEngine.enableConcurrentPull = false
-
-	// Ensure this image isn't pulled by deleting it
-	removeImage(t, testRegistryImage)
-	removeImage(t, testBusyboxImage)
-
-	testTask := createTestTask("testSerialImagePull")
-	testTask.Containers = append(testTask.Containers,
-		createTestContainerWithImageAndName(testBusyboxImage, "busybox"))
-
-	go taskEngine.AddTask(testTask)
-
-	verifyContainerRunningStateChange(t, taskEngine)
-	verifyContainerRunningStateChange(t, taskEngine)
-	verifyTaskRunningStateChange(t, taskEngine)
-	verifyContainerStoppedStateChange(t, taskEngine)
 	verifyContainerStoppedStateChange(t, taskEngine)
 	verifyTaskStoppedStateChange(t, taskEngine)
 }

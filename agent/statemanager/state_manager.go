@@ -66,7 +66,8 @@ const (
 	// 13) Add 'resources' field to 'api.task.task'
 	// 14) Add 'V3EndpointID' field to 'Container' struct
 	// 15) Add 'associations' field to 'apitask.Task'
-	ECSDataVersion = 15
+	// 16) Add 'PlatformFields' field to 'api.task.task'
+	ECSDataVersion = 16
 
 	// ecsDataFile specifies the filename in the ECS_DATADIR
 	ecsDataFile = "ecs_agent_data.json"

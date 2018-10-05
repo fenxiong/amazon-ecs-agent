@@ -34,18 +34,6 @@ import (
 )
 
 const (
-	emptyVolumeName1                  = "Empty-Volume-1"
-	emptyVolumeContainerPath1         = `C:\my\empty-volume-1`
-	expectedEmptyVolumeGeneratedPath1 = `c:\ecs-empty-volume\empty-volume-1`
-
-	emptyVolumeName2                  = "empty-volume-2"
-	emptyVolumeContainerPath2         = `C:\my\empty-volume-2`
-	expectedEmptyVolumeGeneratedPath2 = `c:\ecs-empty-volume\` + emptyVolumeName2
-
-	expectedEmptyVolumeContainerImage = "microsoft/nanoserver"
-	expectedEmptyVolumeContainerTag   = "latest"
-	expectedEmptyVolumeContainerCmd   = "not-applicable"
-
 	expectedMemorySwappinessDefault = memorySwappinessDefault
 	minDockerClientAPIVersion       = dockerclient.Version_1_24
 )
@@ -310,8 +298,8 @@ func TestCPUPercentBasedOnUnboundedEnabled(t *testing.T) {
 						CPU:  uint(tc.cpu),
 					},
 				},
-				platformFields: platformFields{
-					cpuUnbounded: tc.cpuUnbounded,
+				PlatformFields: PlatformFields{
+					CpuUnbounded: tc.cpuUnbounded,
 				},
 			}
 
@@ -319,6 +307,32 @@ func TestCPUPercentBasedOnUnboundedEnabled(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Empty(t, hostconfig.CPUShares)
 			assert.Equal(t, tc.cpuPercent, hostconfig.CPUPercent)
+		})
+	}
+}
+
+func TestGetCanonicalPath(t *testing.T) {
+	testcases := []struct {
+		name           string
+		path           string
+		expectedResult string
+	}{
+		{
+			name:           "folderPath",
+			path:           `C:\myFile`,
+			expectedResult: `c:\myfile`,
+		},
+		{
+			name:           "drivePath",
+			path:           `D:`,
+			expectedResult: `d:`,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getCanonicalPath(tc.path)
+			assert.Equal(t, result, tc.expectedResult)
 		})
 	}
 }

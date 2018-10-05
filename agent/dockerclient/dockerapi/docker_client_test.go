@@ -37,7 +37,6 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/ec2"
 	"github.com/aws/amazon-ecs-agent/agent/ecr/mocks"
 	ecrapi "github.com/aws/amazon-ecs-agent/agent/ecr/model/ecr"
-	"github.com/aws/amazon-ecs-agent/agent/emptyvolume"
 	"github.com/aws/amazon-ecs-agent/agent/utils/ttime/mocks"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -326,39 +325,6 @@ func TestGetRepositoryWithUntaggedImage(t *testing.T) {
 	assert.Equal(t, image+":"+dockerDefaultTag, repository)
 }
 
-func TestImportLocalEmptyVolumeImage(t *testing.T) {
-	mockDocker, client, testTime, _, _, done := dockerClientSetup(t)
-	defer done()
-
-	// The special emptyvolume image leads to a create, not pull
-	testTime.EXPECT().After(gomock.Any()).AnyTimes()
-	gomock.InOrder(
-		mockDocker.EXPECT().InspectImage(emptyvolume.Image+":"+emptyvolume.Tag).Return(nil, errors.New("Does not exist")),
-		mockDocker.EXPECT().ImportImage(gomock.Any()).Do(func(x interface{}) {
-			req := x.(docker.ImportImageOptions)
-			require.Equal(t, emptyvolume.Image, req.Repository, "expected empty volume repository")
-			require.Equal(t, emptyvolume.Tag, req.Tag, "expected empty volume tag")
-		}),
-	)
-
-	metadata := client.ImportLocalEmptyVolumeImage()
-	assert.NoError(t, metadata.Error, "Expected import to succeed")
-}
-
-func TestImportLocalEmptyVolumeImageExisting(t *testing.T) {
-	mockDocker, client, testTime, _, _, done := dockerClientSetup(t)
-	defer done()
-
-	// The special emptyvolume image leads to a create only if it doesn't exist
-	testTime.EXPECT().After(gomock.Any()).AnyTimes()
-	gomock.InOrder(
-		mockDocker.EXPECT().InspectImage(emptyvolume.Image+":"+emptyvolume.Tag).Return(&docker.Image{}, nil),
-	)
-
-	metadata := client.ImportLocalEmptyVolumeImage()
-	assert.NoError(t, metadata.Error, "Expected import to succeed")
-}
-
 func TestCreateContainerTimeout(t *testing.T) {
 	mockDocker, client, _, _, _, done := dockerClientSetup(t)
 	defer done()
@@ -377,33 +343,6 @@ func TestCreateContainerTimeout(t *testing.T) {
 	wait.Done()
 }
 
-func TestCreateContainerInspectTimeout(t *testing.T) {
-	mockDocker, client, _, _, _, done := dockerClientSetup(t)
-	defer done()
-
-	config := docker.CreateContainerOptions{Config: &docker.Config{Memory: 100}, Name: "containerName"}
-	gomock.InOrder(
-		mockDocker.EXPECT().CreateContainer(gomock.Any()).Do(func(opts docker.CreateContainerOptions) {
-			if !reflect.DeepEqual(opts.Config, config.Config) {
-				t.Errorf("Mismatch in create container config, %v != %v", opts.Config, config.Config)
-			}
-			if opts.Name != config.Name {
-				t.Errorf("Mismatch in create container options, %s != %s", opts.Name, config.Name)
-			}
-		}).Return(&docker.Container{ID: "id"}, nil),
-		mockDocker.EXPECT().InspectContainerWithContext("id", gomock.Any()).Return(nil, &DockerTimeoutError{}),
-	)
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-	metadata := client.CreateContainer(ctx, config.Config, nil, config.Name, 1*time.Second)
-	if metadata.DockerID != "id" {
-		t.Error("Expected ID to be set even if inspect failed; was " + metadata.DockerID)
-	}
-	if metadata.Error == nil {
-		t.Error("Expected error for inspect timeout")
-	}
-}
-
 func TestCreateContainer(t *testing.T) {
 	mockDocker, client, _, _, _, done := dockerClientSetup(t)
 	defer done()
@@ -418,7 +357,6 @@ func TestCreateContainer(t *testing.T) {
 				t.Errorf("Mismatch in create container options, %s != %s", opts.Name, config.Name)
 			}
 		}).Return(&docker.Container{ID: "id"}, nil),
-		mockDocker.EXPECT().InspectContainerWithContext("id", gomock.Any()).Return(&docker.Container{ID: "id"}, nil),
 	)
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
@@ -578,12 +516,6 @@ func TestContainerEvents(t *testing.T) {
 
 	dockerEvents, err := client.ContainerEvents(context.TODO())
 	require.NoError(t, err, "Could not get container events")
-
-	mockDocker.EXPECT().InspectContainerWithContext("containerId", gomock.Any()).Return(
-		&docker.Container{
-			ID: "containerId",
-		},
-		nil)
 	go func() {
 		events <- &docker.APIEvents{Type: "container", ID: "containerId", Status: "create"}
 	}()
@@ -599,7 +531,7 @@ func TestContainerEvents(t *testing.T) {
 				"80/tcp": {{HostPort: "9001"}},
 			},
 		},
-		Volumes: map[string]string{"/host/path": "/container/path"},
+		Mounts: []docker.Mount{{Source: "/host/path", Destination: "/container/path"}},
 	}
 	mockDocker.EXPECT().InspectContainerWithContext("cid2", gomock.Any()).Return(container, nil)
 	go func() {
@@ -610,7 +542,8 @@ func TestContainerEvents(t *testing.T) {
 	assert.Equal(t, event.Status, apicontainerstatus.ContainerRunning, "Wrong status")
 	assert.Equal(t, event.PortBindings[0].ContainerPort, uint16(80), "Incorrect port bindings")
 	assert.Equal(t, event.PortBindings[0].HostPort, uint16(9001), "Incorrect port bindings")
-	assert.Equal(t, event.Volumes["/host/path"], "/container/path", "Incorrect volume mapping")
+	assert.Equal(t, event.Volumes[0].Source, "/host/path", "Incorrect volume mapping")
+	assert.Equal(t, event.Volumes[0].Destination, "/container/path", "Incorrect volume mapping")
 
 	for i := 0; i < 2; i++ {
 		stoppedContainer := &docker.Container{
@@ -1022,27 +955,6 @@ func TestRemoveImage(t *testing.T) {
 	}
 }
 
-// TestContainerMetadataWorkaroundIssue27601 tests the workaround for
-// issue https://github.com/moby/moby/issues/27601
-func TestContainerMetadataWorkaroundIssue27601(t *testing.T) {
-	mockDocker, client, _, _, _, done := dockerClientSetup(t)
-	defer done()
-
-	mockDocker.EXPECT().InspectContainerWithContext("id", gomock.Any()).Return(&docker.Container{
-		Mounts: []docker.Mount{{
-			Destination: "destination1",
-			Source:      "source1",
-		}, {
-			Destination: "destination2",
-			Source:      "source2",
-		}},
-	}, nil)
-	ctx, cancel := context.WithCancel(context.TODO())
-	defer cancel()
-	metadata := client.containerMetadata(ctx, "id")
-	assert.Equal(t, map[string]string{"destination1": "source1", "destination2": "source2"}, metadata.Volumes)
-}
-
 func TestLoadImageHappyPath(t *testing.T) {
 	mockDocker, client, _, _, _, done := dockerClientSetup(t)
 	defer done()
@@ -1284,15 +1196,18 @@ func TestECRAuthCacheWithDifferentExecutionRole(t *testing.T) {
 
 func TestMetadataFromContainer(t *testing.T) {
 	ports := map[docker.Port][]docker.PortBinding{
-		docker.Port("80/tcp"): []docker.PortBinding{
+		docker.Port("80/tcp"): {
 			{
 				HostIP:   "0.0.0.0",
 				HostPort: "80",
 			},
 		},
 	}
-	volumes := map[string]string{
-		"/foo": "/bar",
+	volumes := []docker.Mount{
+		{
+			Source:      "/foo",
+			Destination: "/bar",
+		},
 	}
 	labels := map[string]string{
 		"name": "metadata",
@@ -1306,8 +1221,8 @@ func TestMetadataFromContainer(t *testing.T) {
 		NetworkSettings: &docker.NetworkSettings{
 			Ports: ports,
 		},
-		ID:      "1234",
-		Volumes: volumes,
+		ID:     "1234",
+		Mounts: volumes,
 		Config: &docker.Config{
 			Labels: labels,
 		},
@@ -1547,13 +1462,13 @@ func TestListPluginsWithFilter(t *testing.T) {
 	defer done()
 
 	plugins := []docker.PluginDetail{
-		docker.PluginDetail{
+		{
 			ID:     "id1",
 			Name:   "name1",
 			Tag:    "tag1",
 			Active: false,
 		},
-		docker.PluginDetail{
+		{
 			ID:     "id2",
 			Name:   "name2",
 			Tag:    "tag2",
@@ -1566,7 +1481,7 @@ func TestListPluginsWithFilter(t *testing.T) {
 				},
 			},
 		},
-		docker.PluginDetail{
+		{
 			ID:     "id3",
 			Name:   "name3",
 			Tag:    "tag3",

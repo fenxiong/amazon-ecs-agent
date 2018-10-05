@@ -250,66 +250,58 @@ func TestDockerHostConfigPauseContainer(t *testing.T) {
 			ID: "eniID",
 		},
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{
+			{
 				Name: "c1",
 			},
-			&apicontainer.Container{
-				Name: emptyHostVolumeName,
-				Type: apicontainer.ContainerEmptyHostVolume,
-			},
-			&apicontainer.Container{
+			{
 				Name: PauseContainerName,
 				Type: apicontainer.ContainerCNIPause,
 			},
 		},
 	}
 
+	customContainer := testTask.Containers[0]
+	pauseContainer := testTask.Containers[1]
 	// Verify that the network mode is set to "container:<pause-container-docker-id>"
-	// for a non empty volume, non pause container
-	config, err := testTask.DockerHostConfig(testTask.Containers[0], dockerMap(testTask), defaultDockerClientAPIVersion)
+	// for a non pause container
+	config, err := testTask.DockerHostConfig(customContainer, dockerMap(testTask), defaultDockerClientAPIVersion)
 	assert.Nil(t, err)
 	assert.Equal(t, "container:"+dockerIDPrefix+PauseContainerName, config.NetworkMode)
 
-	// Verify that the network mode is not set to "none"  for the
-	// empty volume container
-	config, err = testTask.DockerHostConfig(testTask.Containers[1], dockerMap(testTask), defaultDockerClientAPIVersion)
-	assert.Nil(t, err)
-	assert.Equal(t, networkModeNone, config.NetworkMode)
-
 	// Verify that the network mode is set to "none" for the pause container
-	config, err = testTask.DockerHostConfig(testTask.Containers[2], dockerMap(testTask), defaultDockerClientAPIVersion)
+	config, err = testTask.DockerHostConfig(pauseContainer, dockerMap(testTask), defaultDockerClientAPIVersion)
 	assert.Nil(t, err)
 	assert.Equal(t, networkModeNone, config.NetworkMode)
 
-	// Verify that overridden DNS settings are set for the "pause" container
-	// and not set for non "pause" containers
+	// Verify that overridden DNS settings are set for the pause container
+	// and not set for non pause containers
 	testTask.ENI.DomainNameServers = []string{"169.254.169.253"}
 	testTask.ENI.DomainNameSearchList = []string{"us-west-2.compute.internal"}
 
 	// DNS overrides are only applied to the pause container. Verify that the non-pause
 	// container contains no overrides
-	config, err = testTask.DockerHostConfig(testTask.Containers[0], dockerMap(testTask), defaultDockerClientAPIVersion)
+	config, err = testTask.DockerHostConfig(customContainer, dockerMap(testTask), defaultDockerClientAPIVersion)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(config.DNS))
 	assert.Equal(t, 0, len(config.DNSSearch))
 
 	// Verify DNS settings are overridden for the pause container
-	config, err = testTask.DockerHostConfig(testTask.Containers[2], dockerMap(testTask), defaultDockerClientAPIVersion)
+	config, err = testTask.DockerHostConfig(pauseContainer, dockerMap(testTask), defaultDockerClientAPIVersion)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"169.254.169.253"}, config.DNS)
 	assert.Equal(t, []string{"us-west-2.compute.internal"}, config.DNSSearch)
 
-	// Verify eni ExtraHosts  added to HostConfig for "pause" container
+	// Verify eni ExtraHosts  added to HostConfig for pause container
 	ipaddr := &apieni.ENIIPV4Address{Primary: true, Address: "10.0.1.1"}
 	testTask.ENI.IPV4Addresses = []*apieni.ENIIPV4Address{ipaddr}
 	testTask.ENI.PrivateDNSName = "eni.ip.region.compute.internal"
 
-	config, err = testTask.DockerHostConfig(testTask.Containers[2], dockerMap(testTask), defaultDockerClientAPIVersion)
+	config, err = testTask.DockerHostConfig(pauseContainer, dockerMap(testTask), defaultDockerClientAPIVersion)
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"eni.ip.region.compute.internal:10.0.1.1"}, config.ExtraHosts)
 
-	// Verify eni Hostname is added to DockerConfig for "pause" container
-	dockerconfig, dockerConfigErr := testTask.DockerConfig(testTask.Containers[2], defaultDockerClientAPIVersion)
+	// Verify eni Hostname is added to DockerConfig for pause container
+	dockerconfig, dockerConfigErr := testTask.DockerConfig(pauseContainer, defaultDockerClientAPIVersion)
 	assert.Nil(t, dockerConfigErr)
 	assert.Equal(t, "eni.ip.region.compute.internal", dockerconfig.Hostname)
 
@@ -600,7 +592,7 @@ func TestInitializeContainersV3MetadataEndpoint(t *testing.T) {
 		fmt.Sprintf(apicontainer.MetadataURIFormat, "new-uuid"))
 }
 
-func TestPostUnmarshalTaskWithEmptyVolumes(t *testing.T) {
+func TestPostUnmarshalTaskWithLocalVolumes(t *testing.T) {
 	// Constants used here are defined in task_unix_test.go and task_windows_test.go
 	taskFromACS := ecsacs.Task{
 		Arn:           strptr("myArn"),
@@ -612,8 +604,8 @@ func TestPostUnmarshalTaskWithEmptyVolumes(t *testing.T) {
 				Name: strptr("myName1"),
 				MountPoints: []*ecsacs.MountPoint{
 					{
-						ContainerPath: strptr(emptyVolumeContainerPath1),
-						SourceVolume:  strptr(emptyVolumeName1),
+						ContainerPath: strptr("/path1/"),
+						SourceVolume:  strptr("localvol1"),
 					},
 				},
 			},
@@ -621,20 +613,20 @@ func TestPostUnmarshalTaskWithEmptyVolumes(t *testing.T) {
 				Name: strptr("myName2"),
 				MountPoints: []*ecsacs.MountPoint{
 					{
-						ContainerPath: strptr(emptyVolumeContainerPath2),
-						SourceVolume:  strptr(emptyVolumeName2),
+						ContainerPath: strptr("/path2/"),
+						SourceVolume:  strptr("localvol2"),
 					},
 				},
 			},
 		},
 		Volumes: []*ecsacs.Volume{
 			{
-				Name: strptr(emptyVolumeName1),
+				Name: strptr("localvol1"),
 				Type: strptr("host"),
 				Host: &ecsacs.HostVolumeProperties{},
 			},
 			{
-				Name: strptr(emptyVolumeName2),
+				Name: strptr("localvol2"),
 				Type: strptr("host"),
 				Host: &ecsacs.HostVolumeProperties{},
 			},
@@ -915,15 +907,15 @@ func TestTaskUpdateKnownStatusToPendingWithEssentialContainerStoppedWhenSteadySt
 	testTask := &Task{
 		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
 				Essential:         true,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerStopped,
 				Essential:         true,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe:       apicontainerstatus.ContainerCreated,
 				Essential:               true,
 				SteadyStateStatusUnsafe: &resourcesProvisioned,
@@ -951,8 +943,8 @@ func TestGetEarliestTaskStatusForContainersWhenKnownStatusIsNotSetForContainers(
 	testTask := &Task{
 		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{},
-			&apicontainer.Container{},
+			{},
+			{},
 		},
 	}
 	assert.Equal(t, testTask.getEarliestKnownTaskStatusForContainers(), apitaskstatus.TaskStatusNone)
@@ -962,10 +954,10 @@ func TestGetEarliestTaskStatusForContainersWhenSteadyStateIsRunning(t *testing.T
 	testTask := &Task{
 		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 			},
 		},
@@ -985,13 +977,13 @@ func TestGetEarliestTaskStatusForContainersWhenSteadyStateIsResourceProvisioned(
 	testTask := &Task{
 		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe:       apicontainerstatus.ContainerRunning,
 				SteadyStateStatusUnsafe: &resourcesProvisioned,
 			},
@@ -1017,13 +1009,13 @@ func TestTaskUpdateKnownStatusChecksSteadyStateWhenSetToRunning(t *testing.T) {
 	testTask := &Task{
 		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 			},
 		},
@@ -1048,15 +1040,15 @@ func TestTaskUpdateKnownStatusChecksSteadyStateWhenSetToResourceProvisioned(t *t
 	testTask := &Task{
 		KnownStatusUnsafe: apitaskstatus.TaskStatusNone,
 		Containers: []*apicontainer.Container{
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerCreated,
 				Essential:         true,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe: apicontainerstatus.ContainerRunning,
 				Essential:         true,
 			},
-			&apicontainer.Container{
+			{
 				KnownStatusUnsafe:       apicontainerstatus.ContainerRunning,
 				Essential:               true,
 				SteadyStateStatusUnsafe: &resourcesProvisioned,
@@ -1165,8 +1157,8 @@ func TestTaskFromACSWithOverrides(t *testing.T) {
 				Name: strptr("myName1"),
 				MountPoints: []*ecsacs.MountPoint{
 					{
-						ContainerPath: strptr(emptyVolumeContainerPath1),
-						SourceVolume:  strptr(emptyVolumeName1),
+						ContainerPath: strptr("volumeContainerPath1"),
+						SourceVolume:  strptr("volumeName1"),
 					},
 				},
 				Overrides: strptr(`{"command": ["foo", "bar"]}`),
@@ -1176,8 +1168,8 @@ func TestTaskFromACSWithOverrides(t *testing.T) {
 				Command: []*string{strptr("command")},
 				MountPoints: []*ecsacs.MountPoint{
 					{
-						ContainerPath: strptr(emptyVolumeContainerPath2),
-						SourceVolume:  strptr(emptyVolumeName2),
+						ContainerPath: strptr("volumeContainerPath2"),
+						SourceVolume:  strptr("volumeName2"),
 					},
 				},
 			},

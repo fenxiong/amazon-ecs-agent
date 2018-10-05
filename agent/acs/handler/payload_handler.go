@@ -177,7 +177,7 @@ func (payloadHandler *payloadRequestHandler) handleSingleMessage(payload *ecsacs
 // it to the task engine. It returns a bool indicating if it could add every
 // task to the taskEngine and a slice of credential ack requests
 func (payloadHandler *payloadRequestHandler) addPayloadTasks(payload *ecsacs.PayloadMessage) ([]*ecsacs.IAMRoleCredentialsAckRequest, bool) {
-	// verify thatwe were able to work with all tasks in this payload so we know whether to ack the whole thing or not
+	// verify that we were able to work with all tasks in this payload so we know whether to ack the whole thing or not
 	allTasksOK := true
 
 	validTasks := make([]*apitask.Task, 0, len(payload.Tasks))
@@ -337,6 +337,10 @@ func (payloadHandler *payloadRequestHandler) handleUnrecognizedTask(task *ecsacs
 		TaskARN: *task.Arn,
 		Status:  apitaskstatus.TaskStopped,
 		Reason:  UnrecognizedTaskError{err}.Error(),
+		// The real task cannot be extracted from payload message, so we send an empty task.
+		// This is necessary because the task handler will not send an event whose
+		// Task is nil.
+		Task: &apitask.Task{},
 	}
 
 	payloadHandler.taskHandler.AddStateChangeEvent(taskEvent, payloadHandler.ecsClient)

@@ -37,11 +37,11 @@ const (
 	minimumCPUPercent = 1
 )
 
-// platformFields consists of fields specific to Windows for a task
-type platformFields struct {
-	// cpuUnbounded determines whether a mix of unbounded and bounded CPU tasks
+// PlatformFields consists of fields specific to Windows for a task
+type PlatformFields struct {
+	// CpuUnbounded determines whether a mix of unbounded and bounded CPU tasks
 	// are allowed to run in the instance
-	cpuUnbounded bool
+	CpuUnbounded bool `json:"cpuUnbounded"`
 }
 
 var cpuShareScaleFactor = runtime.NumCPU() * cpuSharesPerCore
@@ -49,10 +49,10 @@ var cpuShareScaleFactor = runtime.NumCPU() * cpuSharesPerCore
 // adjustForPlatform makes Windows-specific changes to the task after unmarshal
 func (task *Task) adjustForPlatform(cfg *config.Config) {
 	task.downcaseAllVolumePaths()
-	platformFields := platformFields{
-		cpuUnbounded: cfg.PlatformVariables.CPUUnbounded,
+	platformFields := PlatformFields{
+		CpuUnbounded: cfg.PlatformVariables.CPUUnbounded,
 	}
-	task.platformFields = platformFields
+	task.PlatformFields = platformFields
 }
 
 // downcaseAllVolumePaths forces all volume paths (host path and container path)
@@ -74,7 +74,22 @@ func (task *Task) downcaseAllVolumePaths() {
 }
 
 func getCanonicalPath(path string) string {
-	return filepath.Clean(strings.ToLower(path))
+	lowercasedPath := strings.ToLower(path)
+	// if the path is a bare drive like "d:", don't filepath.Clean it because it will add a '.'.
+	// this is to fix the case where mounting from D:\ to D: is supported by docker but not ecs
+	if isBareDrive(lowercasedPath) {
+		return lowercasedPath
+	}
+
+	return filepath.Clean(lowercasedPath)
+}
+
+func isBareDrive(path string) bool {
+	if filepath.VolumeName(path) == path {
+		return true
+	}
+
+	return false
 }
 
 // platformHostConfigOverride provides an entry point to set up default HostConfig options to be
@@ -109,7 +124,7 @@ func (task *Task) overrideDefaultMemorySwappiness(hostConfig *docker.HostConfig)
 // want.  Instead, we convert 0 to 2 to be closer to expected behavior. The
 // reason for 2 over 1 is that 1 is an invalid value (Linux's choice, not Docker's).
 func (task *Task) dockerCPUShares(containerCPU uint) int64 {
-	if containerCPU <= 1 && !task.platformFields.cpuUnbounded {
+	if containerCPU <= 1 && !task.PlatformFields.CpuUnbounded {
 		seelog.Debugf(
 			"Converting CPU shares to allowed minimum of 2 for task arn: [%s] and cpu shares: %d",
 			task.Arn, containerCPU)

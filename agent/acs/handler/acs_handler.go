@@ -16,13 +16,12 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
-
-	"context"
 
 	acsclient "github.com/aws/amazon-ecs-agent/agent/acs/client"
 	"github.com/aws/amazon-ecs-agent/agent/acs/model/ecsacs"
@@ -241,7 +240,7 @@ func (acsSession *session) Start() error {
 func (acsSession *session) startSessionOnce() error {
 	acsEndpoint, err := acsSession.ecsClient.DiscoverPollEndpoint(acsSession.containerInstanceARN)
 	if err != nil {
-		seelog.Errorf("Unable to discover poll endpoint, err: %v", err)
+		seelog.Errorf("acs: unable to discover poll endpoint, err: %v", err)
 		return err
 	}
 
