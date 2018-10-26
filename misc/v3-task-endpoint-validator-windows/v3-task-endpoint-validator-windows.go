@@ -321,6 +321,8 @@ func main() {
 	containerStatsPath := v3BaseEndpoint + "/stats"
 	taskStatsPath := v3BaseEndpoint + "/task/stats"
 
+	defer seelog.Flush()
+
 	if err := verifyContainerMetadata(client, containerMetadataPath); err != nil {
 		seelog.Errorf("Container metadata: %v\n", err)
 		os.Exit(1)
