@@ -1331,3 +1331,82 @@ func TestTaskLevelVolume(t *testing.T) {
 	client := taskEngine.(*DockerTaskEngine).client
 	client.RemoveVolume(context.TODO(), "TestTaskLevelVolume", 5*time.Second)
 }
+
+func TestGPU(t *testing.T) {
+	taskEngine, done, _ := setupWithDefaultConfig(t)
+	defer done()
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	stateChangeEvents := taskEngine.StateChangeEvents()
+
+	testTask := createTestGPUTask()
+	container := testTask.Containers[0]
+
+	go taskEngine.AddTask(testTask)
+
+	verifyTaskIsRunning(stateChangeEvents, testTask)
+	assert.Equal(t, []string{"1"}, container.GPUIDs)
+	assert.Equal(t, "1", container.Environment["NVIDIA_VISIBLE_DEVICES"])
+
+	client, err := sdkClient.NewClientWithOpts(sdkClient.WithHost(endpoint), sdkClient.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
+	require.NoError(t, err, "Creating go docker client failed")
+
+	containerMetadata := taskEngine.(*DockerTaskEngine).pullContainer(testTask, container)
+	assert.NoError(t, containerMetadata.Error)
+
+	containerMetadata = taskEngine.(*DockerTaskEngine).createContainer(testTask, container)
+	assert.NoError(t, containerMetadata.Error)
+	state, _ := client.ContainerInspect(ctx, containerMetadata.DockerID)
+	assert.Equal(t, apicontainerstatus.ContainerCreated, dockerapi.DockerStateToState(state.ContainerJSONBase.State))
+
+	containerMetadata = taskEngine.(*DockerTaskEngine).startContainer(testTask, container)
+	assert.NoError(t, containerMetadata.Error)
+	state, _ = client.ContainerInspect(ctx, containerMetadata.DockerID)
+	assert.Equal(t, apicontainerstatus.ContainerRunning, dockerapi.DockerStateToState(state.ContainerJSONBase.State))
+
+	containerMetadata = taskEngine.(*DockerTaskEngine).stopContainer(testTask, container)
+	assert.NoError(t, containerMetadata.Error)
+	state, _ = client.ContainerInspect(ctx, containerMetadata.DockerID)
+	assert.Equal(t, apicontainerstatus.ContainerStopped, dockerapi.DockerStateToState(state.ContainerJSONBase.State))
+
+	// clean up the container
+	err = taskEngine.(*DockerTaskEngine).removeContainer(testTask, container)
+	assert.NoError(t, err, "remove the created container failed")
+}
+
+func createTestGPUTask() (*apitask.Task) {
+	return &apitask.Task{
+		Arn:                 "testGPUArn",
+		Family:              "family",
+		Version:             "1",
+		DesiredStatusUnsafe: apitaskstatus.TaskRunning,
+		Containers:          []*apicontainer.Container{createTestContainerWithGPU()},
+		Associations: 		 []apitask.Association{
+			{
+				Containers: []string{
+					"gpuContainer-2",
+				},
+				Content: apitask.EncodedString{
+					Encoding: "base64",
+					Value:    "val",
+				},
+				Name: "1",
+				Type: "gpu",
+			},
+		},
+	}
+}
+
+func createTestContainerWithImageAndNameWithGPU(image string, name string) *apicontainer.Container {
+	return &apicontainer.Container{
+		Name:                name,
+		Image:               image,
+		Command:             []string{},
+		Essential:           true,
+		DesiredStatusUnsafe: apicontainerstatus.ContainerRunning,
+		CPU:                 100,
+		Memory:              80,
+	}
+}
