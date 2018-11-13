@@ -25,7 +25,7 @@ import (
 const (
 	testRegistryImage = "127.0.0.1:51670/amazon/amazon-ecs-netkitten:latest"
 	dockerEndpoint    = "unix:///var/run/docker.sock"
-	testGPUImage	  = "nvidia/cuda:9.0-base"
+	testGPUImage      = "nvidia/cuda:9.0-base"
 )
 
 func createTestContainer() *apicontainer.Container {
@@ -33,7 +33,7 @@ func createTestContainer() *apicontainer.Container {
 }
 
 func createTestContainerWithGPU() *apicontainer.Container {
-	return createTestContainerWithImageAndNameWithGPU(testGPUImage, "gpuContainer-2")
+	return createTestContainerWithImageAndNameWithGPU(testRegistryImage, "gpuContainer-2")
 }
 
 func isDockerRunning() bool {
