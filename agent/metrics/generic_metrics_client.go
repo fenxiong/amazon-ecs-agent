@@ -88,7 +88,7 @@ func (dm *GenericMetrics) FireCallEnd(callHash, callName string, timestamp time.
 		dm.durations.WithLabelValues(callName).Set(seconds.Seconds())
 		delete(dm.outstandingCalls, callHash)
 	} else {
-		seelog.Error("Call is not outstanding: %s", callName)
+		seelog.Errorf("Call is not outstanding: %s", callName)
 	}
 }
 
