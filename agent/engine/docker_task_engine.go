@@ -817,6 +817,8 @@ func (engine *DockerTaskEngine) updateContainerReference(pullSucceeded bool, con
 
 func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *apicontainer.Container) dockerapi.DockerContainerMetadata {
 	seelog.Infof("Task engine [%s]: creating container: %s", task.Arn, container.Name)
+	time.Sleep(300 * time.Second)
+	
 	client := engine.client
 	if container.DockerConfig.Version != nil {
 		client = client.WithVersion(dockerclient.DockerVersion(*container.DockerConfig.Version))
@@ -928,6 +930,7 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *apicontainer.Container) dockerapi.DockerContainerMetadata {
 	seelog.Infof("Task engine [%s]: starting container: %s", task.Arn, container.Name)
 	client := engine.client
+
 	if container.DockerConfig.Version != nil {
 		client = client.WithVersion(dockerclient.DockerVersion(*container.DockerConfig.Version))
 	}
