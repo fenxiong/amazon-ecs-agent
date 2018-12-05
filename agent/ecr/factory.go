@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	awscreds "github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/cihub/seelog"
 )
 
 // ECRFactory defines the interface to produce an ECR SDK client
@@ -62,6 +63,7 @@ func (factory *ecrFactory) GetClient(authData *apicontainer.ECRAuthData) (ECRCli
 func getClientConfig(httpClient *http.Client, authData *apicontainer.ECRAuthData) (*aws.Config, error) {
 	cfg := aws.NewConfig().WithRegion(authData.Region).WithHTTPClient(httpClient)
 	if authData.EndpointOverride != "" {
+		seelog.Debugf("Overriding ECR endpoint to: %s", authData.EndpointOverride)
 		cfg.Endpoint = aws.String(authData.EndpointOverride)
 	}
 
