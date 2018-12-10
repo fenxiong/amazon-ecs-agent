@@ -13,7 +13,7 @@
   revision = "d6e3b3328b783f23731bc4d058875b0371ff8109"
 
 [[projects]]
-  digest = "1:05c1f0aa5c5e42e1b85cbe1a9c9c74adfd1e5d0c1b839b2924371aed51e9eb64"
+  digest = "1:bf42be3cb1519bf8018dfd99720b1005ee028d947124cab3ccf965da59381df6"
   name = "github.com/Microsoft/go-winio"
   packages = ["."]
   pruneopts = "UT"
@@ -29,7 +29,7 @@
   revision = "cd527374f1e5bff4938207604a14f2e38a9cf512"
 
 [[projects]]
-  digest = "1:628c819f7c2181679a7b241822c84f03c7c4d6d1fcea690304eab59ed80efd84"
+  digest = "1:1a734d8f35c6917ddd7b4900c71d42aba41804972c3e464dee419117eaefd86c"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -43,17 +43,21 @@
     "aws/credentials/ec2rolecreds",
     "aws/credentials/endpointcreds",
     "aws/credentials/stscreds",
+    "aws/csm",
     "aws/defaults",
     "aws/ec2metadata",
     "aws/endpoints",
     "aws/request",
     "aws/session",
     "aws/signer/v4",
+    "internal/ini",
     "internal/sdkio",
     "internal/sdkrand",
+    "internal/sdkuri",
     "internal/shareddefaults",
     "private/model/api",
     "private/protocol",
+    "private/protocol/ec2query",
     "private/protocol/json/jsonutil",
     "private/protocol/jsonrpc",
     "private/protocol/query",
@@ -63,14 +67,16 @@
     "private/util",
     "service/cloudwatch",
     "service/cloudwatchlogs",
+    "service/ec2",
     "service/iam",
     "service/secretsmanager",
     "service/secretsmanager/secretsmanageriface",
+    "service/ssm",
     "service/sts",
   ]
   pruneopts = "UT"
-  revision = "4f5d298bd2dcb34b06d944594f458d1f77ac4d66"
-  version = "v1.13.42"
+  revision = "870fa4307c5f57c14153c695df7b87af1acdcbf1"
+  version = "v1.15.66"
 
 [[projects]]
   digest = "1:50e893a85575fa48dc4982a279e50e2fd8b74e4f7c587860c1e25c77083b8125"
@@ -96,7 +102,7 @@
   revision = "1bed1ecb1dc42d8f4d2ac8c23e5cac64749e82c9"
 
 [[projects]]
-  digest = "1:f8d32b4ab8973dfa69c099ab71a7e6b381cb24fba87ffddc7581a1bbddd24f53"
+  digest = "1:82da867f9729353d9b9c9af126e0b3260003150aab19c2564a8259d42fbc0b90"
   name = "github.com/containernetworking/cni"
   packages = [
     "libcni",
@@ -134,7 +140,7 @@
   revision = "82fe5be8ca5f7d8255cc838723687f61bb175120"
 
 [[projects]]
-  digest = "1:050df10a09cce6fbe4e054cf63bde68e8ed4479dffa68fd10fb82eb996632c4d"
+  digest = "1:90668ed6a20982a029b433e60c9fb5cf5e81ce9c7551170881cf435f73daf3ee"
   name = "github.com/didip/tollbooth"
   packages = [
     ".",
@@ -148,7 +154,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4da39ce6d5b40cfa3f6088bc4d3c048e6ad49e378545642eeed910c6d58365fd"
+  digest = "1:06b187c764904bdd283e93d35f697dae56a478ea2e4b6f0d5c7fc9641bdf9e79"
   name = "github.com/docker/docker"
   packages = [
     "api/types",
@@ -179,7 +185,7 @@
   revision = "7270b01e5dd1fca3fd7fed0d6fb9d2769ec5f4ba"
 
 [[projects]]
-  digest = "1:e76dacf1c43685d6abc79c89bab193362c2028744e57eee425ebfa277b46efb2"
+  digest = "1:b6b5c3e8da0fb8073cd2886ba249a40f4402b4391ca6eba905a142cceea97a12"
   name = "github.com/docker/go-connections"
   packages = [
     "nat",
@@ -199,7 +205,7 @@
   version = "v0.3.2"
 
 [[projects]]
-  digest = "1:cfb0625e2047653e43bec41c8bb543eac50172a35cd5709bec02bbdf6c1de5cc"
+  digest = "1:d27b48207d06ffd365fcbb5ad69c5275a06e298540079d7c52b789cd5d816300"
   name = "github.com/fsouza/go-dockerclient"
   packages = [
     ".",
@@ -209,14 +215,6 @@
   ]
   pruneopts = "UT"
   revision = "be08a2e7eafecb4d8c6bc61be94233a06904a121"
-
-[[projects]]
-  digest = "1:01245be1912f74ab0527574ccd2dbea00cc7b2e304062c49b448b78a8991d802"
-  name = "github.com/go-ini/ini"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "7e7da451323b6766da368f8a1e8ec9a88a16b4a0"
-  version = "v1.31.1"
 
 [[projects]]
   digest = "1:57fa4c058c21ce25d0b7272518dd746065117abf6cc706158b0d361202024520"
@@ -235,11 +233,15 @@
   version = "v0.5"
 
 [[projects]]
-  digest = "1:b9dd62eb71d308d6c4b44af0bae869174975b40baab2ccd65724cefcdb561d55"
+  digest = "1:95f2fa29a06186bf8bece6170d59f0bc8d4c60ac8f78695734da5d8d1d3c5fef"
   name = "github.com/golang/mock"
-  packages = ["gomock"]
+  packages = [
+    "gomock",
+    "mockgen/model",
+  ]
   pruneopts = "UT"
-  revision = "58cd061d09382b6011f84c1291ebe50ef2e25bab"
+  revision = "c34cdb4725f4c3844d095133c6e40e448b86589b"
+  version = "v1.1.1"
 
 [[projects]]
   digest = "1:c79fb010be38a59d657c48c6ba1d003a8aa651fa56b579d959d74573b7dff8e1"
@@ -281,7 +283,7 @@
   version = "v1.0.0-rc1"
 
 [[projects]]
-  digest = "1:7c5c09ec84d18b0dc5ec0de36c1b8d12d3bf1815d04b90dc50ab082f3b8f13f1"
+  digest = "1:11db38d694c130c800d0aefb502fb02519e514dc53d9804ce51d1ad25ec27db6"
   name = "github.com/opencontainers/image-spec"
   packages = [
     "specs-go",
@@ -292,7 +294,7 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:d77051a4a6de36d3dd26d2cd84434c84436fb7b3ffcae0d9585d492d197ea600"
+  digest = "1:38ee335aedf4626620f3cf8f605661e71abdcce7b40b38921962beb3980f0a20"
   name = "github.com/opencontainers/runc"
   packages = ["libcontainer/user"]
   pruneopts = "UT"
@@ -345,7 +347,7 @@
   version = "v1.0.3"
 
 [[projects]]
-  digest = "1:38aee443dc6b1610660b68fb6ff259315aa4219c4772da84a410029a06bc1f76"
+  digest = "1:5110e3d4f130772fd39e6ce8208ad1955b242ccfcc8ad9d158857250579c82f4"
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
@@ -356,7 +358,7 @@
   revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
 
 [[projects]]
-  digest = "1:4ea3e8afbed3b2ccc08185c0e0af1c7ad79e3b22376481414de3279cfbfde1b8"
+  digest = "1:03fa51a73e38bed76bbd22fcb9a77711540a75a44dc69fe831c3f63988828601"
   name = "github.com/vishvananda/netlink"
   packages = [
     ".",
@@ -383,7 +385,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:404b85502f3b58cd49c815443091ffe07ef5bdd7789bf466f1557934ce03bf2b"
+  digest = "1:b765f093fdb6d062f72faf803670d32f3cec565d88637f951943f4d4ac2a6754"
   name = "golang.org/x/net"
   packages = [
     "context",
@@ -396,7 +398,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bca293313d0951931ff9bfebe15464eced0182eed5888e3ddc3ac4645173317b"
+  digest = "1:4957ab15714ed2262e294e194634a9e55fe0d03248bfa6e860a9b8222b7c4bb6"
   name = "golang.org/x/sys"
   packages = [
     "unix",
@@ -417,7 +419,7 @@
   revision = "6dc17368e09b0e8634d71cac8168d853e869a0c7"
 
 [[projects]]
-  digest = "1:06d906b4d2887b5a82e48e9e8503efb3ea57796c3c6a4aaea1224bdac501eb11"
+  digest = "1:bc085afda453f671056c6946862d76ae53946ce2971df0f0a9bf511da6571382"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
@@ -448,9 +450,11 @@
     "github.com/aws/aws-sdk-go/private/util",
     "github.com/aws/aws-sdk-go/service/cloudwatch",
     "github.com/aws/aws-sdk-go/service/cloudwatchlogs",
+    "github.com/aws/aws-sdk-go/service/ec2",
     "github.com/aws/aws-sdk-go/service/iam",
     "github.com/aws/aws-sdk-go/service/secretsmanager",
     "github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface",
+    "github.com/aws/aws-sdk-go/service/ssm",
     "github.com/cihub/seelog",
     "github.com/containerd/cgroups",
     "github.com/containernetworking/cni/libcni",
@@ -462,6 +466,7 @@
     "github.com/docker/docker/pkg/system",
     "github.com/fsouza/go-dockerclient",
     "github.com/golang/mock/gomock",
+    "github.com/golang/mock/mockgen/model",
     "github.com/gorilla/mux",
     "github.com/gorilla/websocket",
     "github.com/opencontainers/runtime-spec/specs-go",

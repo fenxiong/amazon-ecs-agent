@@ -54,6 +54,15 @@ const (
 	MetadataURIEnvironmentVariableName = "ECS_CONTAINER_METADATA_URI"
 	// MetadataURIFormat defines the URI format for v3 metadata endpoint
 	MetadataURIFormat = "http://169.254.170.2/v3/%s"
+
+	// SecretProviderSSM is to show secret provider being SSM
+	SecretProviderSSM = "ssm"
+
+	// SecretProviderASM is to show secret provider being ASM
+	SecretProviderASM = "asm"
+
+	// SecretTypeEnv is to show secret type being ENVIRONMENT_VARIABLE
+	SecretTypeEnv = "ENVIRONMENT_VARIABLE"
 )
 
 // DockerConfig represents additional metadata about a container to run. It's
@@ -105,6 +114,8 @@ type Container struct {
 	MountPoints []MountPoint `json:"mountPoints"`
 	// Ports contains a list of ports binding configuration
 	Ports []PortBinding `json:"portMappings"`
+	// Secrets contains a list of secret
+	Secrets []Secret `json:"secrets"`
 	// Essential denotes whether the container is essential or not
 	Essential bool
 	// EntryPoint is entrypoint of the container, corresponding to docker option: --entrypoint
@@ -240,6 +251,22 @@ type MountPoint struct {
 type VolumeFrom struct {
 	SourceContainer string `json:"sourceContainer"`
 	ReadOnly        bool   `json:"readOnly"`
+}
+
+// Secret contains all essential attributes needed for ECS secrets vending as environment variables/tmpfs files
+type Secret struct {
+	Name          string `json:"name"`
+	ValueFrom     string `json:"valueFrom"`
+	Region        string `json:"region"`
+	ContainerPath string `json:"containerPath"`
+	Type          string `json:"type"`
+	Provider      string `json:"provider"`
+}
+
+// GetSecretResourceCacheKey returns the key required to access the secret
+// from the ssmsecret resource
+func (s *Secret) GetSecretResourceCacheKey() string {
+	return s.ValueFrom + "_" + s.Region
 }
 
 // String returns a human readable string representation of DockerContainer
@@ -411,8 +438,8 @@ func (c *Container) GetNextKnownStateProgression() apicontainerstatus.ContainerS
 	return c.GetKnownStatus() + 1
 }
 
-// IsInternal returns true if the container type is either `ContainerEmptyHostVolume`
-// or `ContainerCNIPause`. It returns false otherwise
+// IsInternal returns true if the container type is `ContainerCNIPause`
+// or `ContainerNamespacePause`. It returns false otherwise
 func (c *Container) IsInternal() bool {
 	if c.Type == ContainerNormal {
 		return false
@@ -723,4 +750,73 @@ func (c *Container) InjectV3MetadataEndpoint() {
 
 	c.Environment[MetadataURIEnvironmentVariableName] =
 		fmt.Sprintf(MetadataURIFormat, c.V3EndpointID)
+}
+
+// ShouldCreateWithSSMSecret returns true if this container needs to get secret
+// value from SSM Parameter Store
+func (c *Container) ShouldCreateWithSSMSecret() bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	// Secrets field will be nil if there is no secrets for container
+	if c.Secrets == nil {
+		return false
+	}
+
+	for _, secret := range c.Secrets {
+		if secret.Provider == SecretProviderSSM {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldCreateWithASMSecret returns true if this container needs to get secret
+// value from AWS Secrets Manager
+func (c *Container) ShouldCreateWithASMSecret() bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	// Secrets field will be nil if there is no secrets for container
+	if c.Secrets == nil {
+		return false
+	}
+
+	for _, secret := range c.Secrets {
+		if secret.Provider == SecretProviderASM {
+			return true
+		}
+	}
+	return false
+}
+
+// MergeEnvironmentVariables appends additional envVarName:envVarValue pairs to
+// the the container's enviornment values structure
+func (c *Container) MergeEnvironmentVariables(envVars map[string]string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	// don't assume that the environment variable map has been initialized by others
+	if c.Environment == nil {
+		c.Environment = make(map[string]string)
+	}
+	for k, v := range envVars {
+		c.Environment[k] = v
+	}
+}
+
+func (c *Container) HasSecretAsEnv() bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	// Secrets field will be nil if there is no secrets for container
+	if c.Secrets == nil {
+		return false
+	}
+	for _, secret := range c.Secrets {
+		if secret.Type == SecretTypeEnv {
+			return true
+		}
+	}
+	return false
 }

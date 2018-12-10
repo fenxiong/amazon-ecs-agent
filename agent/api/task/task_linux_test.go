@@ -76,7 +76,7 @@ func TestAddNetworkResourceProvisioningDependencyWithENI(t *testing.T) {
 	testTask.addNetworkResourceProvisioningDependency(cfg)
 	assert.Equal(t, 2, len(testTask.Containers),
 		"addNetworkResourceProvisioningDependency should add another container")
-	pauseContainer, ok := testTask.ContainerByName(PauseContainerName)
+	pauseContainer, ok := testTask.ContainerByName(NetworkPauseContainerName)
 	require.True(t, ok, "Expected to find pause container")
 	assert.Equal(t, apicontainer.ContainerCNIPause, pauseContainer.Type, "pause container should have correct type")
 	assert.True(t, pauseContainer.Essential, "pause container should be essential")

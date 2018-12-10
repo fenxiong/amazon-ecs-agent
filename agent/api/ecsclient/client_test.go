@@ -47,19 +47,45 @@ const (
 	configuredCluster = "mycluster"
 	iid               = "instanceIdentityDocument"
 	iidSignature      = "signature"
+	registrationToken = "clientToken"
 )
 
 var (
-	iidResponse          = []byte(iid)
-	iidSignatureResponse = []byte(iidSignature)
+	iidResponse           = []byte(iid)
+	iidSignatureResponse  = []byte(iidSignature)
+	containerInstanceTags = []*ecs.Tag{
+		{
+			Key:   aws.String("my_key1"),
+			Value: aws.String("my_val1"),
+		},
+		{
+			Key:   aws.String("my_key2"),
+			Value: aws.String("my_val2"),
+		},
+	}
+	containerInstanceTagsMap = map[string]string{
+		"my_key1": "my_val1",
+		"my_key2": "my_val2",
+	}
 )
 
-func NewMockClient(ctrl *gomock.Controller, ec2Metadata ec2.EC2MetadataClient, additionalAttributes map[string]string) (api.ECSClient, *mock_api.MockECSSDK, *mock_api.MockECSSubmitStateSDK) {
-	client := NewECSClient(credentials.AnonymousCredentials,
-		&config.Config{Cluster: configuredCluster,
+func NewMockClient(ctrl *gomock.Controller,
+	ec2Metadata ec2.EC2MetadataClient,
+	additionalAttributes map[string]string) (api.ECSClient, *mock_api.MockECSSDK, *mock_api.MockECSSubmitStateSDK) {
+
+	return NewMockClientWithConfig(ctrl, ec2Metadata, additionalAttributes,
+		&config.Config{
+			Cluster:            configuredCluster,
 			AWSRegion:          "us-east-1",
 			InstanceAttributes: additionalAttributes,
-		}, ec2Metadata)
+		})
+}
+
+func NewMockClientWithConfig(ctrl *gomock.Controller,
+	ec2Metadata ec2.EC2MetadataClient,
+	additionalAttributes map[string]string,
+	cfg *config.Config) (api.ECSClient, *mock_api.MockECSSDK, *mock_api.MockECSSubmitStateSDK) {
+	client := NewECSClient(credentials.AnonymousCredentials, cfg, ec2Metadata)
 	mockSDK := mock_api.NewMockECSSDK(ctrl)
 	mockSubmitStateSDK := mock_api.NewMockECSSubmitStateSDK(ctrl)
 	client.(*APIECSClient).SetSDK(mockSDK)
@@ -304,7 +330,8 @@ func TestReRegisterContainerInstance(t *testing.T) {
 
 	fakeCapabilities := []string{"capability1", "capability2"}
 	expectedAttributes := map[string]string{
-		"ecs.os-type": config.OSType,
+		"ecs.os-type":           config.OSType,
+		"ecs.availability-zone": "us-west-2b",
 	}
 	for i := range fakeCapabilities {
 		expectedAttributes[fakeCapabilities[i]] = ""
@@ -317,6 +344,7 @@ func TestReRegisterContainerInstance(t *testing.T) {
 		mc.EXPECT().RegisterContainerInstance(gomock.Any()).Do(func(req *ecs.RegisterContainerInstanceInput) {
 			assert.Equal(t, "arn:test", *req.ContainerInstanceArn, "Wrong container instance ARN")
 			assert.Equal(t, configuredCluster, *req.Cluster, "Wrong cluster")
+			assert.Equal(t, registrationToken, *req.ClientToken, "Wrong client token")
 			assert.Equal(t, iid, *req.InstanceIdentityDocument, "Wrong IID")
 			assert.Equal(t, iidSignature, *req.InstanceIdentityDocumentSignature, "Wrong IID sig")
 			assert.Equal(t, 4, len(req.TotalResources), "Wrong length of TotalResources")
@@ -328,13 +356,19 @@ func TestReRegisterContainerInstance(t *testing.T) {
 			reqAttributes := func() map[string]string {
 				rv := make(map[string]string, len(req.Attributes))
 				for i := range req.Attributes {
-					rv[*req.Attributes[i].Name] = aws.StringValue(req.Attributes[i].Value)
+					rv[aws.StringValue(req.Attributes[i].Name)] = aws.StringValue(req.Attributes[i].Value)
 				}
 				return rv
 			}()
 			for k, v := range reqAttributes {
 				assert.Contains(t, expectedAttributes, k)
 				assert.Equal(t, expectedAttributes[k], v)
+			}
+			assert.Equal(t, len(containerInstanceTags), len(req.Tags), "Wrong number of tags")
+			reqTags := extractTagsMapFromRegisterContainerInstanceInput(req)
+			for k, v := range reqTags {
+				assert.Contains(t, containerInstanceTagsMap, k)
+				assert.Equal(t, containerInstanceTagsMap[k], v)
 			}
 		}).Return(&ecs.RegisterContainerInstanceOutput{
 			ContainerInstance: &ecs.ContainerInstance{
@@ -344,13 +378,11 @@ func TestReRegisterContainerInstance(t *testing.T) {
 			nil),
 	)
 
-	arn, err := client.RegisterContainerInstance("arn:test", capabilities)
-	if err != nil {
-		t.Errorf("Should not be an error: %v", err)
-	}
-	if arn != "registerArn" {
-		t.Errorf("Wrong arn: %v", arn)
-	}
+	arn, availabilityzone, err := client.RegisterContainerInstance("arn:test", capabilities, containerInstanceTags, registrationToken)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "registerArn", arn)
+	assert.Equal(t, "us-west-2b", availabilityzone, "availabilityZone is incorrect")
 }
 
 func TestRegisterContainerInstance(t *testing.T) {
@@ -367,6 +399,7 @@ func TestRegisterContainerInstance(t *testing.T) {
 		"ecs.os-type":               config.OSType,
 		"my_custom_attribute":       "Custom_Value1",
 		"my_other_custom_attribute": "Custom_Value2",
+		"ecs.availability-zone":     "us-west-2b",
 	}
 	capabilities := buildAttributeList(fakeCapabilities, nil)
 
@@ -376,6 +409,7 @@ func TestRegisterContainerInstance(t *testing.T) {
 		mc.EXPECT().RegisterContainerInstance(gomock.Any()).Do(func(req *ecs.RegisterContainerInstanceInput) {
 			assert.Nil(t, req.ContainerInstanceArn)
 			assert.Equal(t, configuredCluster, *req.Cluster, "Wrong cluster")
+			assert.Equal(t, registrationToken, *req.ClientToken, "Wrong client token")
 			assert.Equal(t, iid, *req.InstanceIdentityDocument, "Wrong IID")
 			assert.Equal(t, iidSignature, *req.InstanceIdentityDocumentSignature, "Wrong IID sig")
 			assert.Equal(t, 4, len(req.TotalResources), "Wrong length of TotalResources")
@@ -391,6 +425,12 @@ func TestRegisterContainerInstance(t *testing.T) {
 					assert.Equal(t, expectedAttributes[*req.Attributes[i].Name], *req.Attributes[i].Value)
 				}
 			}
+			assert.Equal(t, len(containerInstanceTags), len(req.Tags), "Wrong number of tags")
+			reqTags := extractTagsMapFromRegisterContainerInstanceInput(req)
+			for k, v := range reqTags {
+				assert.Contains(t, containerInstanceTagsMap, k)
+				assert.Equal(t, containerInstanceTagsMap[k], v)
+			}
 		}).Return(&ecs.RegisterContainerInstanceOutput{
 			ContainerInstance: &ecs.ContainerInstance{
 				ContainerInstanceArn: aws.String("registerArn"),
@@ -398,9 +438,73 @@ func TestRegisterContainerInstance(t *testing.T) {
 			nil),
 	)
 
-	arn, err := client.RegisterContainerInstance("", capabilities)
+	arn, availabilityzone, err := client.RegisterContainerInstance("", capabilities, containerInstanceTags, registrationToken)
 	assert.NoError(t, err)
 	assert.Equal(t, "registerArn", arn)
+	assert.Equal(t, "us-west-2b", availabilityzone)
+}
+
+func TestRegisterContainerInstanceNoIID(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockEC2Metadata := mock_ec2.NewMockEC2MetadataClient(mockCtrl)
+	additionalAttributes := map[string]string{"my_custom_attribute": "Custom_Value1",
+		"my_other_custom_attribute": "Custom_Value2",
+	}
+	client, mc, _ := NewMockClientWithConfig(mockCtrl, mockEC2Metadata, additionalAttributes,
+		&config.Config{
+			Cluster:            configuredCluster,
+			AWSRegion:          "us-east-1",
+			InstanceAttributes: additionalAttributes,
+			NoIID:              true,
+		})
+
+	fakeCapabilities := []string{"capability1", "capability2"}
+	expectedAttributes := map[string]string{
+		"ecs.os-type":               config.OSType,
+		"my_custom_attribute":       "Custom_Value1",
+		"my_other_custom_attribute": "Custom_Value2",
+		"ecs.availability-zone":     "us-west-2b",
+	}
+	capabilities := buildAttributeList(fakeCapabilities, nil)
+
+	gomock.InOrder(
+		mc.EXPECT().RegisterContainerInstance(gomock.Any()).Do(func(req *ecs.RegisterContainerInstanceInput) {
+			assert.Nil(t, req.ContainerInstanceArn)
+			assert.Equal(t, configuredCluster, *req.Cluster, "Wrong cluster")
+			assert.Equal(t, registrationToken, *req.ClientToken, "Wrong client token")
+			assert.Equal(t, "", *req.InstanceIdentityDocument, "Wrong IID")
+			assert.Equal(t, "", *req.InstanceIdentityDocumentSignature, "Wrong IID sig")
+			assert.Equal(t, 4, len(req.TotalResources), "Wrong length of TotalResources")
+			resource, ok := findResource(req.TotalResources, "PORTS_UDP")
+			assert.True(t, ok, `Could not find resource "PORTS_UDP"`)
+			assert.Equal(t, "STRINGSET", *resource.Type, `Wrong type for resource "PORTS_UDP"`)
+			// 3 from expectedAttributes and 2 from additionalAttributes
+			assert.Equal(t, 5, len(req.Attributes), "Wrong number of Attributes")
+			for i := range req.Attributes {
+				if strings.Contains(*req.Attributes[i].Name, "capability") {
+					assert.Contains(t, fakeCapabilities, *req.Attributes[i].Name)
+				} else {
+					assert.Equal(t, expectedAttributes[*req.Attributes[i].Name], *req.Attributes[i].Value)
+				}
+			}
+			assert.Equal(t, len(containerInstanceTags), len(req.Tags), "Wrong number of tags")
+			reqTags := extractTagsMapFromRegisterContainerInstanceInput(req)
+			for k, v := range reqTags {
+				assert.Contains(t, containerInstanceTagsMap, k)
+				assert.Equal(t, containerInstanceTagsMap[k], v)
+			}
+		}).Return(&ecs.RegisterContainerInstanceOutput{
+			ContainerInstance: &ecs.ContainerInstance{
+				ContainerInstanceArn: aws.String("registerArn"),
+				Attributes:           buildAttributeList(fakeCapabilities, expectedAttributes)}},
+			nil),
+	)
+
+	arn, availabilityzone, err := client.RegisterContainerInstance("", capabilities, containerInstanceTags, registrationToken)
+	assert.NoError(t, err)
+	assert.Equal(t, "registerArn", arn)
+	assert.Equal(t, "us-west-2b", availabilityzone)
 }
 
 // TestRegisterContainerInstanceWithNegativeResource tests the registeration should fail with negative resource
@@ -424,8 +528,38 @@ func TestRegisterContainerInstanceWithNegativeResource(t *testing.T) {
 		mockEC2Metadata.EXPECT().GetDynamicData(ec2.InstanceIdentityDocumentResource).Return("instanceIdentityDocument", nil),
 		mockEC2Metadata.EXPECT().GetDynamicData(ec2.InstanceIdentityDocumentSignatureResource).Return("signature", nil),
 	)
-	_, err := client.RegisterContainerInstance("", nil)
+	_, _, err := client.RegisterContainerInstance("", nil, nil, "")
 	assert.Error(t, err, "Register resource with negative value should cause registration fail")
+}
+
+func TestRegisterContainerInstanceWithEmptyTags(t *testing.T) {
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	mockEC2Metadata := mock_ec2.NewMockEC2MetadataClient(mockCtrl)
+	client, mc, _ := NewMockClient(mockCtrl, mockEC2Metadata, nil)
+
+	expectedAttributes := map[string]string{
+		"ecs.os-type":               config.OSType,
+		"my_custom_attribute":       "Custom_Value1",
+		"my_other_custom_attribute": "Custom_Value2",
+	}
+
+	fakeCapabilities := []string{"capability1", "capability2"}
+
+	gomock.InOrder(
+		mockEC2Metadata.EXPECT().GetDynamicData(ec2.InstanceIdentityDocumentResource).Return("instanceIdentityDocument", nil),
+		mockEC2Metadata.EXPECT().GetDynamicData(ec2.InstanceIdentityDocumentSignatureResource).Return("signature", nil),
+		mc.EXPECT().RegisterContainerInstance(gomock.Any()).Do(func(req *ecs.RegisterContainerInstanceInput) {
+			assert.Nil(t, req.Tags)
+		}).Return(&ecs.RegisterContainerInstanceOutput{
+			ContainerInstance: &ecs.ContainerInstance{
+				ContainerInstanceArn: aws.String("registerArn"),
+				Attributes:           buildAttributeList(fakeCapabilities, expectedAttributes)}},
+			nil),
+	)
+
+	_, _, err := client.RegisterContainerInstance("", nil, make([]*ecs.Tag, 0), "")
+	assert.NoError(t, err)
 }
 
 func TestValidateRegisteredAttributes(t *testing.T) {
@@ -498,12 +632,15 @@ func TestRegisterBlankCluster(t *testing.T) {
 			nil),
 	)
 
-	arn, err := client.RegisterContainerInstance("", nil)
+	arn, availabilityzone, err := client.RegisterContainerInstance("", nil, nil, "")
 	if err != nil {
 		t.Errorf("Should not be an error: %v", err)
 	}
 	if arn != "registerArn" {
 		t.Errorf("Wrong arn: %v", arn)
+	}
+	if availabilityzone != "" {
+		t.Errorf("wrong availability zone: %v", availabilityzone)
 	}
 }
 
@@ -757,4 +894,12 @@ func TestSubmitContainerStateChangeWhileTaskInPending(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+func extractTagsMapFromRegisterContainerInstanceInput(req *ecs.RegisterContainerInstanceInput) map[string]string {
+	tagsMap := make(map[string]string, len(req.Tags))
+	for i := range req.Tags {
+		tagsMap[aws.StringValue(req.Tags[i].Key)] = aws.StringValue(req.Tags[i].Value)
+	}
+	return tagsMap
 }

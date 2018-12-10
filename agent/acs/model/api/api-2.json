@@ -199,7 +199,8 @@
         "dockerConfig":{"shape":"DockerConfig"},
         "healthCheckType":{"shape":"HealthCheckType"},
         "registryAuthentication":{"shape":"RegistryAuthenticationData"},
-        "logsAuthStrategy":{"shape":"AuthStrategy"}
+        "logsAuthStrategy":{"shape":"AuthStrategy"},
+        "secrets":{"shape":"SecretList"}
       }
     },
     "ContainerList":{
@@ -450,6 +451,35 @@
         "shared"
       ]
     },
+    "Secret":{
+      "type":"structure",
+      "members":{
+        "name":{"shape":"String"},
+        "valueFrom":{"shape":"String"},
+        "containerPath":{"shape":"String"},
+        "type":{"shape":"SecretType"},
+        "region":{"shape":"String"},
+        "provider":{"shape":"SecretProvider"}
+      }
+    },
+    "SecretList":{
+      "type":"list",
+      "member":{"shape":"Secret"}
+    },
+    "SecretProvider":{
+      "type":"string",
+      "enum":[
+        "ssm",
+        "asm"
+      ]
+    },
+    "SecretType":{
+      "type":"string",
+      "enum":[
+        "ENVIRONMENT_VARIABLE",
+        "MOUNT_POINT"
+      ]
+    },
     "SensitiveString":{
       "type":"string",
       "sensitive":true
@@ -496,7 +526,9 @@
         "elasticNetworkInterfaces":{"shape":"ElasticNetworkInterfaceList"},
         "cpu":{"shape":"Double"},
         "memory":{"shape":"Integer"},
-        "associations":{"shape":"Associations"}
+        "associations":{"shape":"Associations"},
+        "pidMode":{"shape":"String"},
+        "ipcMode":{"shape":"String"}
       }
     },
     "TaskList":{

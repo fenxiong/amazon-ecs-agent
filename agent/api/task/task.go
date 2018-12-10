@@ -37,6 +37,8 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/ecscni"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/asmauth"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource/asmsecret"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource/ssmsecret"
 	resourcestatus "github.com/aws/amazon-ecs-agent/agent/taskresource/status"
 	resourcetype "github.com/aws/amazon-ecs-agent/agent/taskresource/types"
 	taskresourcevolume "github.com/aws/amazon-ecs-agent/agent/taskresource/volume"
@@ -51,8 +53,12 @@ import (
 )
 
 const (
-	// PauseContainerName is the internal name for the pause container
-	PauseContainerName = "~internal~ecs~pause"
+	// NetworkPauseContainerName is the internal name for the pause container
+	NetworkPauseContainerName = "~internal~ecs~pause"
+
+	// NamespacePauseContainerName is the internal name for the IPC resource namespace and/or
+	// PID namespace sharing pause container
+	NamespacePauseContainerName = "~internal~ecs~pause~namespace"
 
 	emptyHostVolumeName = "~internal~ecs-emptyvolume-source"
 
@@ -65,13 +71,21 @@ const (
 	arnResourceDelimiter = "/"
 	// networkModeNone specifies the string used to define the `none` docker networking mode
 	networkModeNone = "none"
-	// networkModeContainerPrefix specifies the prefix string used for setting the
-	// container's network mode to be mapped to that of another existing container
-	networkModeContainerPrefix = "container:"
+	// dockerMappingContainerPrefix specifies the prefix string used for setting the
+	// container's option (network, ipc, or pid) to that of another existing container
+	dockerMappingContainerPrefix = "container:"
 
 	// awslogsCredsEndpointOpt is the awslogs option that is used to pass in an
 	// http endpoint for authentication
 	awslogsCredsEndpointOpt = "awslogs-credentials-endpoint"
+
+	// These contants identify the docker flag options
+	pidModeHost     = "host"
+	pidModeTask     = "task"
+	ipcModeHost     = "host"
+	ipcModeTask     = "task"
+	ipcModeSharable = "shareable"
+	ipcModeNone     = "none"
 )
 
 // TaskOverrides are the overrides applied to a task
@@ -169,6 +183,14 @@ type Task struct {
 	terminalReason     string
 	terminalReasonOnce sync.Once
 
+	// PIDMode is used to determine how PID namespaces are organized between
+	// containers of the Task
+	PIDMode string `json:"PidMode,omitempty"`
+
+	// IPCMode is used to determine how IPC resources should be shared among
+	// containers of the Task
+	IPCMode string `json:"IpcMode,omitempty"`
+
 	// lock is for protecting all fields in the task struct
 	lock sync.RWMutex
 }
@@ -224,6 +246,14 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 		task.initializeASMAuthResource(credentialsManager, resourceFields)
 	}
 
+	if task.requiresSSMSecret() {
+		task.initializeSSMSecretResource(credentialsManager, resourceFields)
+	}
+
+	if task.requiresASMSecret() {
+		task.initializeASMSecretResource(credentialsManager, resourceFields)
+	}
+
 	err := task.initializeDockerLocalVolumes(dockerClient, ctx)
 	if err != nil {
 		return apierrors.NewResourceInitError(task.Arn, err)
@@ -236,6 +266,9 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 	task.initializeCredentialsEndpoint(credentialsManager)
 	task.initializeContainersV3MetadataEndpoint(utils.NewDynamicUUIDProvider())
 	task.addNetworkResourceProvisioningDependency(cfg)
+	// Adds necessary Pause containers for sharing PID or IPC namespaces
+	task.addNamespaceSharingProvisioningDependency(cfg)
+
 	return nil
 }
 
@@ -499,6 +532,98 @@ func (task *Task) getAllASMAuthDataRequirements() []*apicontainer.ASMAuthData {
 	return reqs
 }
 
+// requiresSSMSecret returns true if at least one container in the task
+// needs to retrieve secret from SSM parameter
+func (task *Task) requiresSSMSecret() bool {
+	for _, container := range task.Containers {
+		if container.ShouldCreateWithSSMSecret() {
+			return true
+		}
+	}
+	return false
+}
+
+// initializeSSMSecretResource builds the resource dependency map for the SSM ssmsecret resource
+func (task *Task) initializeSSMSecretResource(credentialsManager credentials.Manager,
+	resourceFields *taskresource.ResourceFields) {
+	ssmSecretResource := ssmsecret.NewSSMSecretResource(task.Arn, task.getAllSSMSecretRequirements(),
+		task.ExecutionCredentialsID, credentialsManager, resourceFields.SSMClientCreator)
+	task.AddResource(ssmsecret.ResourceName, ssmSecretResource)
+
+	// for every container that needs ssm secret vending as env, it needs to wait all secrets got retrieved
+	for _, container := range task.Containers {
+		if container.ShouldCreateWithSSMSecret() {
+			container.BuildResourceDependency(ssmSecretResource.GetName(),
+				resourcestatus.ResourceStatus(ssmsecret.SSMSecretCreated),
+				apicontainerstatus.ContainerCreated)
+		}
+	}
+}
+
+// getAllSSMSecretRequirements stores all secrets in a map whose key is region and value is all
+// secrets in that region
+func (task *Task) getAllSSMSecretRequirements() map[string][]apicontainer.Secret {
+	reqs := make(map[string][]apicontainer.Secret)
+
+	for _, container := range task.Containers {
+		for _, secret := range container.Secrets {
+			if secret.Provider == apicontainer.SecretProviderSSM {
+				if _, ok := reqs[secret.Region]; !ok {
+					reqs[secret.Region] = []apicontainer.Secret{}
+				}
+
+				reqs[secret.Region] = append(reqs[secret.Region], secret)
+			}
+		}
+	}
+	return reqs
+}
+
+// requiresASMSecret returns true if at least one container in the task
+// needs to retrieve secret from AWS Secrets Manager
+func (task *Task) requiresASMSecret() bool {
+	for _, container := range task.Containers {
+		if container.ShouldCreateWithASMSecret() {
+			return true
+		}
+	}
+	return false
+}
+
+// initializeASMSecretResource builds the resource dependency map for the asmsecret resource
+func (task *Task) initializeASMSecretResource(credentialsManager credentials.Manager,
+	resourceFields *taskresource.ResourceFields) {
+	asmSecretResource := asmsecret.NewASMSecretResource(task.Arn, task.getAllASMSecretRequirements(),
+		task.ExecutionCredentialsID, credentialsManager, resourceFields.ASMClientCreator)
+	task.AddResource(asmsecret.ResourceName, asmSecretResource)
+
+	// for every container that needs asm secret vending as envvar, it needs to wait all secrets got retrieved
+	for _, container := range task.Containers {
+		if container.ShouldCreateWithASMSecret() {
+			container.BuildResourceDependency(asmSecretResource.GetName(),
+				resourcestatus.ResourceStatus(asmsecret.ASMSecretCreated),
+				apicontainerstatus.ContainerCreated)
+		}
+	}
+}
+
+// getAllASMSecretRequirements stores secrets in a task in a map
+func (task *Task) getAllASMSecretRequirements() map[string]apicontainer.Secret {
+	reqs := make(map[string]apicontainer.Secret)
+
+	for _, container := range task.Containers {
+		for _, secret := range container.Secrets {
+			if secret.Provider == apicontainer.SecretProviderASM {
+				secretKey := secret.GetSecretResourceCacheKey()
+				if _, ok := reqs[secretKey]; !ok {
+					reqs[secretKey] = secret
+				}
+			}
+		}
+	}
+	return reqs
+}
+
 // BuildCNIConfig constructs the cni configuration from eni
 func (task *Task) BuildCNIConfig() (*ecscni.Config, error) {
 	if !task.isNetworkModeVPC() {
@@ -542,7 +667,7 @@ func (task *Task) addNetworkResourceProvisioningDependency(cfg *config.Config) {
 	}
 	pauseContainer := apicontainer.NewContainerWithSteadyState(apicontainerstatus.ContainerResourcesProvisioned)
 	pauseContainer.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
-	pauseContainer.Name = PauseContainerName
+	pauseContainer.Name = NetworkPauseContainerName
 	pauseContainer.Image = fmt.Sprintf("%s:%s", cfg.PauseContainerImageName, cfg.PauseContainerTag)
 	pauseContainer.Essential = true
 	pauseContainer.Type = apicontainer.ContainerCNIPause
@@ -552,8 +677,30 @@ func (task *Task) addNetworkResourceProvisioningDependency(cfg *config.Config) {
 		if container.IsInternal() {
 			continue
 		}
-		container.BuildContainerDependency(PauseContainerName, apicontainerstatus.ContainerResourcesProvisioned, apicontainerstatus.ContainerPulled)
+		container.BuildContainerDependency(NetworkPauseContainerName, apicontainerstatus.ContainerResourcesProvisioned, apicontainerstatus.ContainerPulled)
 		pauseContainer.BuildContainerDependency(container.Name, apicontainerstatus.ContainerStopped, apicontainerstatus.ContainerStopped)
+	}
+}
+
+func (task *Task) addNamespaceSharingProvisioningDependency(cfg *config.Config) {
+	// Pause container does not need to be created if no namespace sharing will be done at task level
+	if task.getIPCMode() != ipcModeTask && task.getPIDMode() != pidModeTask {
+		return
+	}
+	namespacePauseContainer := apicontainer.NewContainerWithSteadyState(apicontainerstatus.ContainerRunning)
+	namespacePauseContainer.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
+	namespacePauseContainer.Name = NamespacePauseContainerName
+	namespacePauseContainer.Image = fmt.Sprintf("%s:%s", config.DefaultPauseContainerImageName, config.DefaultPauseContainerTag)
+	namespacePauseContainer.Essential = true
+	namespacePauseContainer.Type = apicontainer.ContainerNamespacePause
+	task.Containers = append(task.Containers, namespacePauseContainer)
+
+	for _, container := range task.Containers {
+		if container.IsInternal() {
+			continue
+		}
+		container.BuildContainerDependency(NamespacePauseContainerName, apicontainerstatus.ContainerRunning, apicontainerstatus.ContainerPulled)
+		namespacePauseContainer.BuildContainerDependency(container.Name, apicontainerstatus.ContainerStopped, apicontainerstatus.ContainerStopped)
 	}
 }
 
@@ -847,21 +994,29 @@ func (task *Task) dockerHostConfig(container *apicontainer.Container, dockerCont
 
 	// Determine if network mode should be overridden and override it if needed
 	ok, networkMode := task.shouldOverrideNetworkMode(container, dockerContainerMap)
-	if !ok {
-		return hostConfig, nil
-	}
-	hostConfig.NetworkMode = networkMode
-	// Override 'awsvpc' parameters if needed
-	if container.Type == apicontainer.ContainerCNIPause {
+	if ok {
+		hostConfig.NetworkMode = networkMode
+		// Override 'awsvpc' parameters if needed
+		if container.Type == apicontainer.ContainerCNIPause {
+			// apply ExtraHosts to HostConfig for pause container
+			if hosts := task.generateENIExtraHosts(); hosts != nil {
+				hostConfig.ExtraHosts = append(hostConfig.ExtraHosts, hosts...)
+			}
 
-		// apply ExtraHosts to HostConfig for pause container
-		if hosts := task.generateENIExtraHosts(); hosts != nil {
-			hostConfig.ExtraHosts = append(hostConfig.ExtraHosts, hosts...)
+			// Override the DNS settings for the pause container if ENI has custom
+			// DNS settings
+			return task.overrideDNS(hostConfig), nil
 		}
+	}
 
-		// Override the DNS settings for the pause container if ENI has custom
-		// DNS settings
-		return task.overrideDNS(hostConfig), nil
+	ok, pidMode := task.shouldOverridePIDMode(container, dockerContainerMap)
+	if ok {
+		hostConfig.PidMode = pidMode
+	}
+
+	ok, ipcMode := task.shouldOverrideIPCMode(container, dockerContainerMap)
+	if ok {
+		hostConfig.IpcMode = ipcMode
 	}
 
 	return hostConfig, nil
@@ -908,7 +1063,7 @@ func (task *Task) shouldOverrideNetworkMode(container *apicontainer.Container, d
 			container.String(), task.String())
 		return false, ""
 	}
-	return true, networkModeContainerPrefix + pauseContainer.DockerID
+	return true, dockerMappingContainerPrefix + pauseContainer.DockerID
 }
 
 // overrideDNS overrides a container's host config if the following conditions are
@@ -967,6 +1122,95 @@ func (task *Task) generateENIExtraHosts() []string {
 		extraHosts = append(extraHosts, host)
 	}
 	return extraHosts
+}
+
+// shouldOverridePIDMode returns true if the PIDMode of the container needs
+// to be overridden. It also returns the override string in this case. It returns
+// false otherwise
+func (task *Task) shouldOverridePIDMode(container *apicontainer.Container, dockerContainerMap map[string]*apicontainer.DockerContainer) (bool, string) {
+	// If the container is an internal container (ContainerEmptyHostVolume,
+	// ContainerCNIPause, or ContainerNamespacePause), then PID namespace for
+	// the container itself should be private (default Docker option)
+	if container.IsInternal() {
+		return false, ""
+	}
+
+	switch task.getPIDMode() {
+	case pidModeHost:
+		return true, pidModeHost
+
+	case pidModeTask:
+		pauseCont, ok := task.ContainerByName(NamespacePauseContainerName)
+		if !ok {
+			seelog.Criticalf("Namespace Pause container not found in the task: %s; Setting Task's Desired Status to Stopped", task.Arn)
+			task.SetDesiredStatus(apitaskstatus.TaskStopped)
+			return false, ""
+		}
+		pauseDockerID, ok := dockerContainerMap[pauseCont.Name]
+		if !ok || pauseDockerID == nil {
+			// Docker container shouldn't be nil or not exist if the Container definition within task exists; implies code-bug
+			seelog.Criticalf("Namespace Pause docker container not found in the task: %s; Setting Task's Desired Status to Stopped", task.Arn)
+			task.SetDesiredStatus(apitaskstatus.TaskStopped)
+			return false, ""
+		}
+		return true, dockerMappingContainerPrefix + pauseDockerID.DockerID
+
+	// If PIDMode is not Host or Task, then no need to override
+	default:
+		return false, ""
+	}
+}
+
+// shouldOverrideIPCMode returns true if the IPCMode of the container needs
+// to be overridden. It also returns the override string in this case. It returns
+// false otherwise
+func (task *Task) shouldOverrideIPCMode(container *apicontainer.Container, dockerContainerMap map[string]*apicontainer.DockerContainer) (bool, string) {
+	// All internal containers do not need the same IPCMode. The NamespaceContainerPause
+	// needs to be "shareable" if ipcMode is "task". All other internal containers should
+	// defer to the Docker daemon default option (either shareable or private depending on
+	// version and configuration)
+	if container.IsInternal() {
+		if container.Type == apicontainer.ContainerNamespacePause {
+			// Setting NamespaceContainerPause to be sharable with other containers
+			if task.getIPCMode() == ipcModeTask {
+				return true, ipcModeSharable
+			}
+		}
+		// Defaulting to Docker daemon default option
+		return false, ""
+	}
+
+	switch task.getIPCMode() {
+	// No IPCMode provided in Task Definition, no need to override
+	case "":
+		return false, ""
+
+	// IPCMode is none - container will have own private namespace with /dev/shm not mounted
+	case ipcModeNone:
+		return true, ipcModeNone
+
+	case ipcModeHost:
+		return true, ipcModeHost
+
+	case ipcModeTask:
+		pauseCont, ok := task.ContainerByName(NamespacePauseContainerName)
+		if !ok {
+			seelog.Criticalf("Namespace Pause container not found in the task: %s; Setting Task's Desired Status to Stopped", task.Arn)
+			task.SetDesiredStatus(apitaskstatus.TaskStopped)
+			return false, ""
+		}
+		pauseDockerID, ok := dockerContainerMap[pauseCont.Name]
+		if !ok || pauseDockerID == nil {
+			// Docker container shouldn't be nill or not exist if the Container definition within task exists; implies code-bug
+			seelog.Criticalf("Namespace Pause container not found in the task: %s; Setting Task's Desired Status to Stopped", task.Arn)
+			task.SetDesiredStatus(apitaskstatus.TaskStopped)
+			return false, ""
+		}
+		return true, dockerMappingContainerPrefix + pauseDockerID.DockerID
+
+	default:
+		return false, ""
+	}
 }
 
 func (task *Task) dockerLinks(container *apicontainer.Container, dockerContainerMap map[string]*apicontainer.DockerContainer) ([]string, error) {
@@ -1413,7 +1657,11 @@ func (task *Task) SetTerminalReason(reason string) {
 	seelog.Infof("Task [%s]: attempting to set terminal reason for task [%s]", task.Arn, reason)
 	task.terminalReasonOnce.Do(func() {
 		seelog.Infof("Task [%s]: setting terminal reason for task [%s]", task.Arn, reason)
-		task.terminalReason = reason
+
+		// Converts the first letter of terminal reason into capital letter
+		words := strings.Fields(reason)
+		words[0] = strings.Title(words[0])
+		task.terminalReason = strings.Join(words, " ")
 	})
 }
 
@@ -1449,6 +1697,67 @@ func (task *Task) getASMAuthResource() ([]taskresource.TaskResource, bool) {
 	defer task.lock.RUnlock()
 
 	res, ok := task.ResourcesMapUnsafe[asmauth.ResourceName]
+	return res, ok
+}
+
+// getSSMSecretsResource retrieves ssmsecret resource from resource map
+func (task *Task) getSSMSecretsResource() ([]taskresource.TaskResource, bool) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	res, ok := task.ResourcesMapUnsafe[ssmsecret.ResourceName]
+	return res, ok
+}
+
+// PopulateSecretsAsEnv appends the container's env var map with secrets
+func (task *Task) PopulateSecretsAsEnv(container *apicontainer.Container) *apierrors.DockerClientConfigError {
+	var ssmRes *ssmsecret.SSMSecretResource
+	var asmRes *asmsecret.ASMSecretResource
+
+	if container.ShouldCreateWithSSMSecret() {
+		resource, ok := task.getSSMSecretsResource()
+		if !ok {
+			return &apierrors.DockerClientConfigError{"task secret data: unable to fetch SSM Secrets resource"}
+		}
+		ssmRes = resource[0].(*ssmsecret.SSMSecretResource)
+	}
+
+	if container.ShouldCreateWithASMSecret() {
+		resource, ok := task.getASMSecretsResource()
+		if !ok {
+			return &apierrors.DockerClientConfigError{"task secret data: unable to fetch ASM Secrets resource"}
+		}
+		asmRes = resource[0].(*asmsecret.ASMSecretResource)
+	}
+
+	envVars := make(map[string]string)
+
+	for _, secret := range container.Secrets {
+		if secret.Provider == apicontainer.SecretProviderSSM && secret.Type == apicontainer.SecretTypeEnv {
+			k := secret.GetSecretResourceCacheKey()
+			if secretValue, ok := ssmRes.GetCachedSecretValue(k); ok {
+				envVars[secret.Name] = secretValue
+			}
+		}
+
+		if secret.Provider == apicontainer.SecretProviderASM && secret.Type == apicontainer.SecretTypeEnv {
+			k := secret.GetSecretResourceCacheKey()
+			if secretValue, ok := asmRes.GetCachedSecretValue(k); ok {
+				envVars[secret.Name] = secretValue
+			}
+		}
+	}
+
+	container.MergeEnvironmentVariables(envVars)
+	return nil
+}
+
+// getASMSecretsResource retrieves asmsecret resource from resource map
+func (task *Task) getASMSecretsResource() ([]taskresource.TaskResource, bool) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	res, ok := task.ResourcesMapUnsafe[asmsecret.ResourceName]
 	return res, ok
 }
 
@@ -1498,4 +1807,20 @@ func (task *Task) AssociationByTypeAndName(associationType, associationName stri
 	}
 
 	return nil, false
+}
+
+// Retrieves a Task's PIDMode
+func (task *Task) getPIDMode() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	return task.PIDMode
+}
+
+// Retrieves a Task's IPCMode
+func (task *Task) getIPCMode() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	return task.IPCMode
 }

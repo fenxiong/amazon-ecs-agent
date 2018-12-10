@@ -19,7 +19,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/aws/amazon-ecs-agent/agent/asm/factory"
+	asmfactory "github.com/aws/amazon-ecs-agent/agent/asm/factory"
+	ssmfactory "github.com/aws/amazon-ecs-agent/agent/ssm/factory"
 	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/credentials"
 	"github.com/aws/amazon-ecs-agent/agent/ec2"
@@ -81,17 +82,15 @@ func (agent *ecsAgent) initializeTaskENIDependencies(state dockerstate.TaskEngin
 		return err, true
 	}
 
-	if agent.cfg.ShouldLoadPauseContainerTarball() {
-		// Load the pause container's image from the 'disk'
-		if _, err := agent.pauseLoader.LoadImage(agent.ctx, agent.cfg, agent.dockerClient); err != nil {
-			if pause.IsNoSuchFileError(err) || pause.UnsupportedPlatform(err) {
-				// If the pause container's image tarball doesn't exist or if the
-				// invocation is done for an unsupported platform, we cannot recover.
-				// Return the error as terminal for these cases
-				return err, true
-			}
-			return err, false
+	// Load the pause container's image from the 'disk'
+	if _, err := agent.pauseLoader.LoadImage(agent.ctx, agent.cfg, agent.dockerClient); err != nil {
+		if pause.IsNoSuchFileError(err) || pause.UnsupportedPlatform(err) {
+			// If the pause container's image tarball doesn't exist or if the
+			// invocation is done for an unsupported platform, we cannot recover.
+			// Return the error as terminal for these cases
+			return err, true
 		}
+		return err, false
 	}
 
 	if err := agent.startUdevWatcher(state, taskEngine.StateChangeEvents()); err != nil {
@@ -197,7 +196,8 @@ func (agent *ecsAgent) initializeResourceFields(credentialsManager credentials.M
 		Control: cgroup.New(),
 		ResourceFieldsCommon: &taskresource.ResourceFieldsCommon{
 			IOUtil:             ioutilwrapper.NewIOUtil(),
-			ASMClientCreator:   factory.NewClientCreator(),
+			ASMClientCreator:   asmfactory.NewClientCreator(),
+			SSMClientCreator:   ssmfactory.NewSSMClientCreator(),
 			CredentialsManager: credentialsManager,
 		},
 		Ctx:          agent.ctx,

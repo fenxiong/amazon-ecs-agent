@@ -24,6 +24,10 @@ import (
 // behaviors including default, always, never and once.
 type ImagePullBehaviorType int8
 
+// ContainerInstancePropagateTagsFromType is an enum variable type corresponding to different
+// ways to propagate tags, it includes none (default) and ec2_instance.
+type ContainerInstancePropagateTagsFromType int8
+
 type Config struct {
 	// DEPRECATED
 	// ClusterArn is the Name or full ARN of a Cluster to register into. It has
@@ -95,6 +99,9 @@ type Config struct {
 
 	// ContainerStartTimeout specifies the amount of time to wait to start a container
 	ContainerStartTimeout time.Duration
+
+	// ImagePullInactivityTimeout is here to override the amount of time to wait when pulling and extracting a container
+	ImagePullInactivityTimeout time.Duration
 
 	// AvailableLoggingDrivers specifies the logging drivers available for use
 	// with Docker.  If not set, it defaults to ["json-file","none"].
@@ -224,4 +231,24 @@ type Config struct {
 	// and labels. For comparing shared volume across 2 instances, this should be set to false as docker's
 	// default behavior is to match name only, and does not propagate driver options and labels through volume drivers.
 	SharedVolumeMatchFullConfig bool
+
+	// NoIID when set to true, specifies that the agent should not register the instance
+	// with instance identity document. This is required in order to accomodate scenarios in
+	// which ECS agent tries to register the instance where the instance id document is
+	// not available or needed
+	NoIID bool
+
+	// ContainerInstancePropagateTagsFrom when set to "ec2_instance", agent will call EC2 API to
+	// get the tags and register them through RegisterContainerInstance call.
+	// When set to "none" (or any other string), no API call will be made.
+	ContainerInstancePropagateTagsFrom ContainerInstancePropagateTagsFromType
+
+	// ContainerInstanceTags contains key/value pairs representing
+	// tags extracted from config file and will be associated with this instance
+	// through RegisterContainerInstance call. Tags with the same keys from DescribeTags
+	// API call will be overridden.
+	ContainerInstanceTags map[string]string
+
+	// ImageCleanupExclusionList is the list of image names customers want to keep for their own use and delete automatically
+	ImageCleanupExclusionList []string
 }

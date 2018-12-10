@@ -47,6 +47,7 @@ func TestBrokenEC2Metadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
 	mockEc2Metadata.EXPECT().InstanceIdentityDocument().Return(ec2metadata.EC2InstanceIdentityDocument{}, errors.New("err"))
+	mockEc2Metadata.EXPECT().GetUserData()
 
 	_, err := NewConfig(mockEc2Metadata)
 	assert.Error(t, err, "Expected error when region isn't set and metadata doesn't work")
@@ -58,11 +59,31 @@ func TestBrokenEC2MetadataEndpoint(t *testing.T) {
 	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
 
 	mockEc2Metadata.EXPECT().InstanceIdentityDocument().Return(ec2metadata.EC2InstanceIdentityDocument{}, errors.New("err"))
+	mockEc2Metadata.EXPECT().GetUserData()
 
 	config, err := NewConfig(mockEc2Metadata)
 	assert.NoError(t, err)
 	assert.Equal(t, config.AWSRegion, "us-west-2", "Wrong region")
 	assert.Zero(t, config.APIEndpoint, "Endpoint env variable not set; endpoint should be blank")
+}
+
+func TestGetRegionWithNoIID(t *testing.T) {
+	defer setTestEnv("AWS_DEFAULT_REGION", "")()
+	ctrl := gomock.NewController(t)
+	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
+
+	userDataResponse := `{ "ECSAgentConfiguration":{
+		"Cluster":"arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster",
+		"APIEndpoint":"https://some-endpoint.com",
+		"NoIID":true
+	}}`
+	mockEc2Metadata.EXPECT().GetUserData().Return(userDataResponse, nil)
+	mockEc2Metadata.EXPECT().Region().Return("us-east-1", nil)
+
+	config, err := NewConfig(mockEc2Metadata)
+	assert.NoError(t, err)
+	assert.Equal(t, config.AWSRegion, "us-east-1", "Wrong region")
+	assert.Equal(t, config.APIEndpoint, "https://some-endpoint.com", "Endpoint env variable not set; endpoint should be blank")
 }
 
 func TestEnvironmentConfig(t *testing.T) {
@@ -72,6 +93,7 @@ func TestEnvironmentConfig(t *testing.T) {
 	defer setTestEnv("ECS_RESERVED_MEMORY", "20")()
 	defer setTestEnv("ECS_CONTAINER_STOP_TIMEOUT", "60s")()
 	defer setTestEnv("ECS_CONTAINER_START_TIMEOUT", "5m")()
+	defer setTestEnv("ECS_IMAGE_PULL_INACTIVITY_TIMEOUT", "10m")()
 	defer setTestEnv("ECS_AVAILABLE_LOGGING_DRIVERS", "[\""+string(dockerclient.SyslogDriver)+"\"]")()
 	defer setTestEnv("ECS_SELINUX_CAPABLE", "true")()
 	defer setTestEnv("ECS_APPARMOR_CAPABLE", "true")()
@@ -85,6 +107,7 @@ func TestEnvironmentConfig(t *testing.T) {
 	defer setTestEnv("ECS_NUM_IMAGES_DELETE_PER_CYCLE", "2")()
 	defer setTestEnv("ECS_IMAGE_PULL_BEHAVIOR", "always")()
 	defer setTestEnv("ECS_INSTANCE_ATTRIBUTES", "{\"my_attribute\": \"testing\"}")()
+	defer setTestEnv("ECS_CONTAINER_INSTANCE_TAGS", `{"my_tag": "testing"}`)()
 	defer setTestEnv("ECS_ENABLE_TASK_ENI", "true")()
 	defer setTestEnv("ECS_TASK_METADATA_RPS_LIMIT", "1000,1100")()
 	defer setTestEnv("ECS_SHARED_VOLUME_MATCH_FULL_CONFIG", "true")()
@@ -118,6 +141,7 @@ func TestEnvironmentConfig(t *testing.T) {
 	assert.Equal(t, 2, conf.NumImagesToDeletePerCycle)
 	assert.Equal(t, ImagePullAlwaysBehavior, conf.ImagePullBehavior)
 	assert.Equal(t, "testing", conf.InstanceAttributes["my_attribute"])
+	assert.Equal(t, "testing", conf.ContainerInstanceTags["my_tag"])
 	assert.Equal(t, (90 * time.Second), conf.TaskCleanupWaitDuration)
 	serializedAdditionalLocalRoutesJSON, err := json.Marshal(conf.AWSVPCAdditionalLocalRoutes)
 	assert.NoError(t, err, "should marshal additional local routes")
@@ -174,6 +198,13 @@ func TestBadAttributesSerialization(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestBadTagsSerialization(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_CONTAINER_INSTANCE_TAGS", "This is not valid JSON")()
+	_, err := environmentConfig()
+	assert.Error(t, err)
+}
+
 func TestInvalidLoggingDriver(t *testing.T) {
 	conf := DefaultConfig()
 	conf.AWSRegion = "us-west-2"
@@ -204,9 +235,7 @@ func TestCheckpointWithoutECSDataDir(t *testing.T) {
 func TestInvalidFormatDockerStopTimeout(t *testing.T) {
 	defer setTestRegion()()
 	defer setTestEnv("ECS_CONTAINER_STOP_TIMEOUT", "invalid")()
-	ctrl := gomock.NewController(t)
-	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
-	conf, err := NewConfig(mockEc2Metadata)
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.Equal(t, conf.DockerStopTimeout, defaultDockerStopTimeout, "Wrong value for DockerStopTimeout")
 }
@@ -214,9 +243,7 @@ func TestInvalidFormatDockerStopTimeout(t *testing.T) {
 func TestZeroValueDockerStopTimeout(t *testing.T) {
 	defer setTestRegion()()
 	defer setTestEnv("ECS_CONTAINER_STOP_TIMEOUT", "0s")()
-	ctrl := gomock.NewController(t)
-	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
-	conf, err := NewConfig(mockEc2Metadata)
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.Equal(t, conf.DockerStopTimeout, defaultDockerStopTimeout, "Wrong value for DockerStopTimeout")
 }
@@ -224,9 +251,7 @@ func TestZeroValueDockerStopTimeout(t *testing.T) {
 func TestInvalidValueDockerStopTimeout(t *testing.T) {
 	defer setTestRegion()()
 	defer setTestEnv("ECS_CONTAINER_STOP_TIMEOUT", "-10s")()
-	ctrl := gomock.NewController(t)
-	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
-	conf, err := NewConfig(mockEc2Metadata)
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.Equal(t, conf.DockerStopTimeout, minimumDockerStopTimeout, "Wrong value for DockerStopTimeout")
 }
@@ -234,19 +259,40 @@ func TestInvalidValueDockerStopTimeout(t *testing.T) {
 func TestInvalidFormatContainerStartTimeout(t *testing.T) {
 	defer setTestRegion()()
 	defer setTestEnv("ECS_CONTAINER_START_TIMEOUT", "invalid")()
-	ctrl := gomock.NewController(t)
-	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
-	conf, err := NewConfig(mockEc2Metadata)
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.Equal(t, conf.ContainerStartTimeout, defaultContainerStartTimeout, "Wrong value for ContainerStartTimeout")
 }
 
+func TestInvalidFormatDockerInactivityTimeout(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_IMAGE_PULL_INACTIVITY_TIMEOUT", "invalid")()
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+	assert.NoError(t, err)
+	assert.Equal(t, conf.ImagePullInactivityTimeout, defaultImagePullInactivityTimeout, "Wrong value for ImagePullInactivityTimeout")
+}
+
+func TestTooSmallDockerInactivityTimeout(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_IMAGE_PULL_INACTIVITY_TIMEOUT", "5s")()
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+	assert.NoError(t, err)
+	assert.Equal(t, conf.ImagePullInactivityTimeout, minimumImagePullInactivityTimeout, "Wrong value for ImagePullInactivityTimeout")
+}
+
+func TestNegativeValueDockerInactivityTimeout(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_IMAGE_PULL_INACTIVITY_TIMEOUT", "-10s")()
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+	assert.NoError(t, err)
+	assert.Equal(t, conf.ImagePullInactivityTimeout, minimumImagePullInactivityTimeout, "Wrong value for ImagePullInactivityTimeout")
+}
+
+// Zero is also how the config api handles 'bad' values... so we get a 'default' and not a minimum
 func TestZeroValueContainerStartTimeout(t *testing.T) {
 	defer setTestRegion()()
 	defer setTestEnv("ECS_CONTAINER_START_TIMEOUT", "0s")()
-	ctrl := gomock.NewController(t)
-	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
-	conf, err := NewConfig(mockEc2Metadata)
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.Equal(t, conf.ContainerStartTimeout, defaultContainerStartTimeout, "Wrong value for ContainerStartTimeout")
 }
@@ -254,11 +300,25 @@ func TestZeroValueContainerStartTimeout(t *testing.T) {
 func TestInvalidValueContainerStartTimeout(t *testing.T) {
 	defer setTestRegion()()
 	defer setTestEnv("ECS_CONTAINER_START_TIMEOUT", "-10s")()
-	ctrl := gomock.NewController(t)
-	mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
-	conf, err := NewConfig(mockEc2Metadata)
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
 	assert.NoError(t, err)
 	assert.Equal(t, conf.ContainerStartTimeout, minimumContainerStartTimeout, "Wrong value for ContainerStartTimeout")
+}
+
+func TestZeroValueDockerPullInactivityTimeout(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_DOCKER_PULL_INACTIVITY_TIMEOUT", "0s")()
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+	assert.NoError(t, err)
+	assert.Equal(t, conf.ImagePullInactivityTimeout, defaultImagePullInactivityTimeout, "Wrong value for ImagePullInactivityTimeout")
+}
+
+func TestInvalidValueDockerPullInactivityTimeout(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_DOCKER_PULL_INACTIVITY_TIMEOUT", "-10s")()
+	conf, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+	assert.NoError(t, err)
+	assert.Equal(t, conf.ImagePullInactivityTimeout, defaultImagePullInactivityTimeout, "Wrong value for ImagePullInactivityTimeout")
 }
 
 func TestInvalidFormatParseEnvVariableUint16(t *testing.T) {
@@ -280,6 +340,13 @@ func TestInvalidFormatParseEnvVariableDuration(t *testing.T) {
 	setTestEnv("FOO", "foo")
 	duration := parseEnvVariableDuration("FOO")
 	assert.Zero(t, duration, "Expected 0 from parseEnvVariableDuration for invalid format")
+}
+
+func TestValidForImagesCleanupExclusion(t *testing.T) {
+	defer setTestRegion()()
+	defer setTestEnv("ECS_IMAGE_CLEANUP_EXCLUDE", "amazonlinux:2,amazonlinux:3")()
+	imagesNotDelete := parseImageCleanupExclusionList("ECS_IMAGE_CLEANUP_EXCLUDE")
+	assert.Equal(t, []string{"amazonlinux:2", "amazonlinux:3"}, imagesNotDelete, "unexpected imageCleanupExclusionList")
 }
 
 func TestValidFormatParseEnvVariableDuration(t *testing.T) {
@@ -528,6 +595,98 @@ func TestTaskMetadataRPSLimits(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tc.expectedSteadyStateRate, cfg.TaskMetadataSteadyStateRate)
 			assert.Equal(t, tc.expectedBurstRate, cfg.TaskMetadataBurstRate)
+		})
+	}
+}
+
+func TestUserDataConfig(t *testing.T) {
+	testcases := []struct {
+		name                      string
+		userDataResponse          string
+		userDataResponseError     error
+		expectedConfigCluster     string
+		expectedConfigAPIEndpoint string
+		shouldFail                bool
+	}{
+		{
+			name: "successful consume userdata config",
+			userDataResponse: `{ "ECSAgentConfiguration":{
+					"Cluster":"arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster",
+					"APIEndpoint":"https://some-endpoint.com"
+				}
+			}`,
+			userDataResponseError:     nil,
+			expectedConfigCluster:     "arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster",
+			expectedConfigAPIEndpoint: "https://some-endpoint.com",
+		},
+		{
+			name:                      "returns errors retrieving ec2 userdata",
+			userDataResponse:          "",
+			userDataResponseError:     errors.New("failed to get userdata"),
+			expectedConfigCluster:     "",
+			expectedConfigAPIEndpoint: "",
+		},
+		{
+			name: "returns error, failed to parse json",
+			userDataResponse: `{{{ "ECSAgentConfiguration":{
+					"Cluster":"arn:aws:ecs:us-east-1:123456789012:cluster/my-cluster",
+					"APIEndpoint":"https://some-endpoint.com"
+				}
+			}`,
+			userDataResponseError:     nil,
+			expectedConfigCluster:     "",
+			expectedConfigAPIEndpoint: "",
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockEc2Metadata := mock_ec2.NewMockEC2MetadataClient(ctrl)
+			mockEc2Metadata.EXPECT().GetUserData().Return(tc.userDataResponse, tc.userDataResponseError)
+			cfg := userDataConfig(mockEc2Metadata)
+			assert.Equal(t, tc.expectedConfigAPIEndpoint, cfg.APIEndpoint)
+			assert.Equal(t, tc.expectedConfigCluster, cfg.Cluster)
+		})
+	}
+}
+
+func TestContainerInstancePropagateTagsFrom(t *testing.T) {
+	testcases := []struct {
+		name                                       string
+		envVarVal                                  string
+		expectedContainerInstancePropagateTagsFrom ContainerInstancePropagateTagsFromType
+	}{
+		{
+			name:      "none container instance propagate tags",
+			envVarVal: "none",
+			expectedContainerInstancePropagateTagsFrom: ContainerInstancePropagateTagsFromNoneType,
+		},
+		{
+			name:      "ec2_instance container instance propagate tags",
+			envVarVal: "ec2_instance",
+			expectedContainerInstancePropagateTagsFrom: ContainerInstancePropagateTagsFromEC2InstanceType,
+		},
+		{
+			name:      "invalid container instance propagate tags",
+			envVarVal: "none",
+			expectedContainerInstancePropagateTagsFrom: ContainerInstancePropagateTagsFromNoneType,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer setTestRegion()()
+			defer setTestEnv("ECS_CONTAINER_INSTANCE_PROPAGATE_TAGS_FROM", tc.envVarVal)()
+
+			// Test the parse function only.
+			assert.Equal(t, parseContainerInstancePropagateTagsFrom(), tc.expectedContainerInstancePropagateTagsFrom,
+				"Wrong value from parseContainerInstancePropagateTagsFrom")
+
+			cfg, err := NewConfig(ec2.NewBlackholeEC2MetadataClient())
+			assert.NoError(t, err)
+			assert.Equal(t, cfg.ContainerInstancePropagateTagsFrom, tc.expectedContainerInstancePropagateTagsFrom,
+				"Wrong value for ContainerInstancePropagateTagsFrom")
 		})
 	}
 }

@@ -14,7 +14,8 @@
 USERID=$(shell id -u)
 GO_EXECUTABLE=$(shell command -v go 2> /dev/null)
 
-.PHONY: all gobuild static docker release certs test clean netkitten test-registry run-functional-tests benchmark-test gogenerate run-integ-tests pause-container get-cni-sources cni-plugins test-artifacts
+.PHONY: all gobuild static docker release certs test clean netkitten test-registry namespace-tests run-functional-tests benchmark-test gogenerate run-integ-tests pause-container get-cni-sources cni-plugins test-artifacts
+BUILD_PLATFORM:=$(shell uname -m)
 
 all: docker
 
@@ -88,8 +89,13 @@ misc/certs/ca-certificates.crt:
 	docker build -t "amazon/amazon-ecs-agent-cert-source:make" misc/certs/
 	docker run "amazon/amazon-ecs-agent-cert-source:make" cat /etc/ssl/certs/ca-certificates.crt > misc/certs/ca-certificates.crt
 
-test:
+ifeq (${BUILD_PLATFORM},aarch64)
+test::
+	. ./scripts/shared_env && go test -tags unit -timeout=25s -v -cover $(shell go list ./agent/... | grep -v /vendor/)
+else
+test::
 	. ./scripts/shared_env && go test -race -tags unit -timeout=25s -v -cover $(shell go list ./agent/... | grep -v /vendor/)
+endif
 
 test-silent:
 	. ./scripts/shared_env && go test -timeout=25s -cover $(shell go list ./agent/... | grep -v /vendor/)
@@ -123,7 +129,13 @@ endef
 
 # TODO: use `go list -f` to target the test files more directly
 ALL_GO_FILES = $(shell find . -name "*.go" -print | tr "\n" " ")
+
+ifeq (${BUILD_PLATFORM},aarch64)
+GO_INTEG_TEST = go test -tags integration -c -o
+else
 GO_INTEG_TEST = go test -race -tags integration -c -o
+endif
+
 out/test-artifacts/linux-engine-tests: $(ALL_GO_FILES) .out-stamp .builder-image-stamp
 	$(call dockerbuild,$(GO_INTEG_TEST) $@ ./agent/engine)
 
@@ -172,7 +184,7 @@ test-artifacts-linux: $(LINUX_ARTIFACTS_TARGETS)
 test-artifacts: test-artifacts-windows test-artifacts-linux
 
 # Run our 'test' registry needed for integ and functional tests
-test-registry: netkitten volumes-test squid awscli image-cleanup-test-images fluentd agent-introspection-validator taskmetadata-validator v3-task-endpoint-validator elastic-inference-validator
+test-registry: netkitten volumes-test namespace-tests pause-container squid awscli image-cleanup-test-images fluentd agent-introspection-validator taskmetadata-validator v3-task-endpoint-validator elastic-inference-validator
 	@./scripts/setup-test-registry
 
 test-in-docker:
@@ -182,6 +194,19 @@ test-in-docker:
 
 run-functional-tests: testnnp test-registry ecr-execution-role-image telemetry-test-image
 	. ./scripts/shared_env && go test -tags functional -timeout=30m -v ./agent/functional_tests/...
+
+.PHONY: build-image-for-ecr ecr-execution-role-image-for-upload upload-images replicate-images
+
+build-image-for-ecr: netkitten volumes-test squid awscli image-cleanup-test-images fluentd taskmetadata-validator testnnp container-health-check-image telemetry-test-image ecr-execution-role-image-for-upload
+
+ecr-execution-role-image-for-upload:
+	$(MAKE) -C misc/ecr-execution-role-upload $(MFLAGS)
+
+upload-images: build-image-for-ecr
+	@./scripts/upload-images $(STANDARD_REGION) $(STANDARD_REPOSITORY)
+
+replicate-images: build-image-for-ecr
+	@./scripts/upload-images $(REPLICATE_REGION) $(REPLICATE_REPOSITORY)
 
 PAUSE_CONTAINER_IMAGE = "amazon/amazon-ecs-pause"
 PAUSE_CONTAINER_TAG = "0.1.0"
@@ -221,11 +246,21 @@ cni-plugins: get-cni-sources .out-stamp
 		"amazon/amazon-ecs-build-cniplugins:make"
 	@echo "Built amazon-ecs-cni-plugins successfully."
 
+ifeq (${BUILD_PLATFORM},aarch64)
 run-integ-tests: test-registry gremlin container-health-check-image run-sudo-tests
-	. ./scripts/shared_env && go test -race -tags integration -timeout=7m -v ./agent/engine/... ./agent/stats/... ./agent/app/...
+	. ./scripts/shared_env && go test -tags integration -timeout=20m -v ./agent/engine/... ./agent/stats/... ./agent/app/...agent
+else
+run-integ-tests: test-registry gremlin container-health-check-image run-sudo-tests
+	. ./scripts/shared_env && go test -race -tags integration -timeout=12m -v ./agent/engine/... ./agent/stats/... ./agent/app/...
+endif
 
-run-sudo-tests:
+ifeq (${BUILD_PLATFORM},aarch64)
+run-sudo-tests::
+	. ./scripts/shared_env && sudo -E ${GO_EXECUTABLE} test -tags sudo -timeout=10m -v ./agent/engine/...
+else
+run-sudo-tests::
 	. ./scripts/shared_env && sudo -E ${GO_EXECUTABLE} test -race -tags sudo -timeout=1m -v ./agent/engine/...
+endif
 
 .PHONY: codebuild
 codebuild: test-artifacts .out-stamp
@@ -239,6 +274,17 @@ netkitten:
 
 volumes-test:
 	$(MAKE) -C misc/volumes-test $(MFLAGS)
+
+namespace-tests:
+	@docker build -f scripts/dockerfiles/Dockerfile.buildNamespaceTests -t "amazon/amazon-ecs-namespace-tests:make" .
+	@docker run --net=none \
+		-u "$(USERID)" \
+		-v "$(PWD)/misc/namespace-tests:/out" \
+		-v "$(PWD)/misc/namespace-tests/buildContainer:/usr/src/buildContainer" \
+		"amazon/amazon-ecs-namespace-tests:make"
+
+	$(MAKE) -C misc/namespace-tests $(MFLAGS)
+	@docker rmi -f "amazon/amazon-ecs-namespace-tests:make"
 
 # TODO, replace this with a build on dockerhub or a mechanism for the
 # functional tests themselves to build this
@@ -309,7 +355,7 @@ ifeq (${PLATFORM},Linux)
 		dep_arch=darwin-386
 	endif
 
-DEP_VERSION=v0.4.1
+DEP_VERSION=v0.5.0
 .PHONY: get-dep
 get-dep: bin/dep
 
@@ -327,6 +373,7 @@ clean:
 	$(MAKE) -C $(ECS_CNI_REPOSITORY_SRC_DIR) clean
 	-$(MAKE) -C misc/netkitten $(MFLAGS) clean
 	-$(MAKE) -C misc/volumes-test $(MFLAGS) clean
+	-$(MAKE) -C misc/namespace-tests $(MFLAGS) clean
 	-$(MAKE) -C misc/gremlin $(MFLAGS) clean
 	-$(MAKE) -C misc/testnnp $(MFLAGS) clean
 	-$(MAKE) -C misc/image-cleanup-test-images $(MFLAGS) clean
