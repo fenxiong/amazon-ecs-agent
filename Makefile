@@ -201,6 +201,9 @@ test-in-docker:
 run-functional-tests: testnnp test-registry ecr-execution-role-image telemetry-test-image
 	. ./scripts/shared_env && go test -tags functional -timeout=40m -v ./agent/functional_tests/...
 
+run-functional-test-single: testnnp test-registry ecr-execution-role-image telemetry-test-image
+	. ./scripts/shared_env && go test -tags functional -run $(TEST_NAME) -timeout=32m -v ./agent/functional_tests/...
+
 .PHONY: build-image-for-ecr ecr-execution-role-image-for-upload upload-images replicate-images
 
 build-image-for-ecr: netkitten volumes-test squid awscli image-cleanup-test-images fluentd taskmetadata-validator testnnp container-health-check-image telemetry-test-image ecr-execution-role-image-for-upload
