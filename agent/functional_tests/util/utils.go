@@ -161,12 +161,13 @@ func (agent *TestAgent) verifyIntrospectionAPI() error {
 // Platform Independent piece of Agent Cleanup. Gets executed on both linux and Windows.
 func (agent *TestAgent) platformIndependentCleanup() {
 	agent.StopAgent()
-	if agent.t.Failed() {
-		agent.t.Logf("Preserving test dir for failed test %s", agent.TestDir)
-	} else {
-		agent.t.Logf("Removing test dir for passed test %s", agent.TestDir)
-		os.RemoveAll(agent.TestDir)
-	}
+	//if agent.t.Failed() {
+	//	agent.t.Logf("Preserving test dir for failed test %s", agent.TestDir)
+	//} else {
+	//	agent.t.Logf("Removing test dir for passed test %s", agent.TestDir)
+	//	os.RemoveAll(agent.TestDir)
+	//}
+	agent.t.Logf("Preserving test dir for either failed or passed test %s", agent.TestDir)
 	ECS.DeregisterContainerInstance(&ecs.DeregisterContainerInstanceInput{
 		Cluster:           &agent.Cluster,
 		ContainerInstance: &agent.ContainerInstanceArn,
