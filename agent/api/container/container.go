@@ -820,3 +820,20 @@ func (c *Container) HasSecretAsEnv() bool {
 	}
 	return false
 }
+
+func (c *Container) ContainsSecret(secretName string) bool {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	if c.Secrets == nil {
+		return false
+	}
+
+	for _, secret := range c.Secrets {
+		if secret.Name == "splunk-token" {
+			return true
+		}
+	}
+
+	return false
+}

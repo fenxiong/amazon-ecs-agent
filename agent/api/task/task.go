@@ -936,6 +936,23 @@ func (task *Task) dockerHostConfig(container *apicontainer.Container, dockerCont
 		}
 	}
 
+	if container.ContainsSecret("splunk-token") {
+		seelog.Infof("Found secret splunk-token in container %s, using it as logging driver option", container.Name)
+		secretValue, err := task.getSSMSecretValue(container, "splunk-token")
+		seelog.Infof("Found splunk-token value in ssm secret: %s", secretValue)
+		if err != nil {
+			return nil, &apierrors.HostConfigError{err.Error()}
+		}
+
+		if hostConfig.LogConfig.Type == "splunk" {
+			if hostConfig.LogConfig.Config == nil {
+				hostConfig.LogConfig.Config = make(map[string]string)
+			}
+			hostConfig.LogConfig.Config["splunk-token"] = secretValue
+			seelog.Info("Overridden splunk-token value in log driver option.")
+		}
+	}
+
 	err = task.platformHostConfigOverride(hostConfig)
 	if err != nil {
 		return nil, &apierrors.HostConfigError{err.Error()}
@@ -1674,6 +1691,31 @@ func (task *Task) getSSMSecretsResource() ([]taskresource.TaskResource, bool) {
 
 	res, ok := task.ResourcesMapUnsafe[ssmsecret.ResourceName]
 	return res, ok
+}
+
+func (task *Task) getSSMSecretValue(container *apicontainer.Container, secretName string) (string, error) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	var ssmRes *ssmsecret.SSMSecretResource
+
+	resource, ok := task.getSSMSecretsResource()
+	if !ok {
+		return "", &apierrors.DockerClientConfigError{"task secret data: unable to fetch SSM Secrets resource"}
+	}
+	ssmRes = resource[0].(*ssmsecret.SSMSecretResource)
+
+	for _, secret := range container.Secrets {
+		if secret.Provider == apicontainer.SecretProviderSSM && secret.Name == secretName {
+			secretKey := secret.GetSecretResourceCacheKey()
+			secretValue, ok := ssmRes.GetCachedSecretValue(secretKey)
+			if !ok {
+				return "", &apierrors.DockerClientConfigError{"task secret data: unable to fetch SSM secret value"}
+			}
+			return secretValue, nil
+		}
+	}
+	return "", &apierrors.DockerClientConfigError{fmt.Sprintf("task secret data: unable to find SSM secret %s", secretName)}
 }
 
 // PopulateSecretsAsEnv appends the container's env var map with secrets
