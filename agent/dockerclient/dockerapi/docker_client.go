@@ -14,6 +14,7 @@
 package dockerapi
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -407,6 +408,8 @@ func (dg *dockerGoClient) pullImage(ctx context.Context, image string, authData 
 		defer reader.Close()
 		defer close(ch)
 
+		go dg.filterPullDebugOutput(reader, image)
+
 		decoder := json.NewDecoder(reader)
 		data := new(ImagePullResponse)
 		for err := decoder.Decode(data); err != io.EOF; err = decoder.Decode(data) {
@@ -425,8 +428,6 @@ func (dg *dockerGoClient) pullImage(ctx context.Context, image string, authData 
 			pullBeganOnce.Do(func() {
 				pullBegan <- true
 			})
-
-			dg.filterPullDebugOutput(data, image)
 
 			data = new(ImagePullResponse)
 		}
@@ -456,21 +457,39 @@ func (dg *dockerGoClient) pullImage(ctx context.Context, image string, authData 
 	return nil
 }
 
-func (dg *dockerGoClient) filterPullDebugOutput(data *ImagePullResponse, image string) {
+func (dg *dockerGoClient) filterPullDebugOutput(responseBody io.ReadCloser, image string) {
+	pullDebugOut, pullWriter := io.Pipe()
+	defer pullWriter.Close()
 
+	go func() {
+		io.Copy(pullWriter, responseBody)
+	}()
+
+	reader := bufio.NewReader(pullDebugOut)
+	var line string
+	var pullErr error
 	var statusDisplayed time.Time
+	for {
+		line, pullErr = reader.ReadString('\n')
+		if pullErr != nil {
+			break
+		}
 
-	now := time.Now()
-	if !strings.Contains(data.Progress, "[=") || now.After(statusDisplayed.Add(pullStatusSuppressDelay)) {
-		// skip most of the progress bar lines, but retain enough for debugging
-		seelog.Debugf("DockerGoClient: pulling image %s, status %s", image, data.Progress)
-		statusDisplayed = now
+		now := time.Now()
+		if !strings.Contains(line, "[=") || now.After(statusDisplayed.Add(pullStatusSuppressDelay)) {
+			// skip most of the progress bar lines, but retain enough for debugging
+			seelog.Debugf("DockerGoClient: pulling image %s, status %s", image, line)
+			statusDisplayed = now
+		}
+
+		if strings.Contains(line, "already being pulled by another client. Waiting.") {
+			// This can mean the daemon is 'hung' in pulling status for this image, but we can't be sure.
+			seelog.Errorf("DockerGoClient: image 'pull' status marked as already being pulled for image %s, status %s",
+				image, line)
+		}
 	}
-
-	if strings.Contains(data.Status, "already being pulled by another client. Waiting.") {
-		// This can mean the daemon is 'hung' in pulling status for this image, but we can't be sure.
-		seelog.Errorf("DockerGoClient: image 'pull' status marked as already being pulled for image %s, status %s",
-			image, data.Status)
+	if pullErr != nil && pullErr != io.EOF {
+		seelog.Warnf("DockerGoClient: error reading pull image status for image %s: %v", image, pullErr)
 	}
 }
 
