@@ -130,3 +130,47 @@ func TestLoadsDataForAWSVPCTask(t *testing.T) {
 	assert.Equal(t, 1, len(ipv4Addresses))
 	assert.Equal(t, "172.31.10.246", ipv4Addresses[0])
 }
+
+func BenchmarkStateSaving(b *testing.B) {
+	tmpDir, err := ioutil.TempDir("/tmp", "ecs_statemanager_test")
+	if err != nil {
+		b.Fail()
+	}
+	defer os.RemoveAll(tmpDir)
+	cfg := &config.Config{DataDir: tmpDir}
+	manager, err := statemanager.NewStateManager(cfg)
+	if err != nil {
+		b.Fail()
+	}
+
+	err = manager.Load()
+	if err != nil {
+		b.Fail()
+	}
+
+	// Now let's make some state to save
+	containerInstanceArn := ""
+	taskEngine := engine.NewTaskEngine(&config.Config{}, nil, nil, nil, nil, dockerstate.NewTaskEngineState(),
+		nil, nil)
+
+	manager, err = statemanager.NewStateManager(cfg, statemanager.AddSaveable("TaskEngine", taskEngine),
+		statemanager.AddSaveable("ContainerInstanceArn", &containerInstanceArn))
+	if err != nil {
+		b.Fail()
+	}
+
+	containerInstanceArn = "containerInstanceArn"
+
+	testTask := &apitask.Task{Arn: "test-arn"}
+	taskEngine.(*engine.DockerTaskEngine).State().AddTask(testTask)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err = manager.ForceSave()
+		if err != nil {
+			b.Fail()
+		}
+	}
+
+	// assertFileMode(t, filepath.Join(tmpDir, "ecs_agent_data.json"))
+}
