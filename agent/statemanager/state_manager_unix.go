@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/cihub/seelog"
 )
@@ -67,6 +68,16 @@ func (manager *basicStateManager) writeFile(data []byte) error {
 		seelog.Errorf("Error saving state; could not create temp file to save state, err: %v", err)
 		return err
 	}
+	fileFd := int(tmpfile.Fd())
+	stat := syscall.Statfs_t{}
+
+	err = syscall.Fstatfs(fileFd, &stat)
+	if err != nil {
+		seelog.Errorf("Error getting file system type: %v", err)
+	} else {
+		seelog.Infof("File system type: %X", stat.Type)
+	}
+
 	_, err = tmpfile.Write(data)
 	if err != nil {
 		seelog.Errorf("Error saving state; could not write to temp file to save state, err: %v", err)
