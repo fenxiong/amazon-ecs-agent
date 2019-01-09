@@ -1314,6 +1314,9 @@ func (task *Task) updateContainerDesiredStatusUnsafe(taskDesiredStatus apitaskst
 		taskDesiredStatusToContainerStatus := apitaskstatus.MapTaskToContainerStatus(taskDesiredStatus, container.GetSteadyStateStatus())
 		if container.GetDesiredStatus() < taskDesiredStatusToContainerStatus {
 			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
+		} else if !container.Essential && container.GetKnownStatus() == apicontainerstatus.ContainerStopped && taskDesiredStatusToContainerStatus == apicontainerstatus.ContainerRunning { // restart non-essential container
+			seelog.Debugf("Setting desired status of stopped container %s to running because it is non essential and task desires running", container.Name)
+			container.SetDesiredStatus(taskDesiredStatusToContainerStatus)
 		}
 	}
 }

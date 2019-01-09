@@ -396,7 +396,10 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	// to be known running so it will be stopped. Subsequently ignore these backward transitions
 	containerKnownStatus := container.GetKnownStatus()
 	mtask.handleStoppedToRunningContainerTransition(event.Status, container)
-	if event.Status <= containerKnownStatus {
+
+	if !container.Essential && event.Status == apicontainerstatus.ContainerRunning && containerKnownStatus == apicontainerstatus.ContainerStopped {
+		seelog.Infof("Bypassing redundant check to restart non-essential container %s", container.Name)
+	} else if event.Status <= containerKnownStatus {
 		seelog.Infof("Managed task [%s]: redundant container state change. %s to %s, but already %s",
 			mtask.Arn, container.Name, event.Status.String(), containerKnownStatus.String())
 		return
@@ -441,6 +444,11 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	}
 	seelog.Debugf("Managed task [%s]: container change also resulted in task change [%s]: [%s]",
 		mtask.Arn, container.Name, mtask.GetDesiredStatus().String())
+
+	if !container.Essential && container.GetDesiredStatus() == apicontainerstatus.ContainerRunning && container.GetKnownStatus() == apicontainerstatus.ContainerStopped {
+		seelog.Debugf("Restarting non-essential container %s", container.Name)
+		go mtask.engine.transitionContainer(mtask.Task, container, apicontainerstatus.ContainerRunning)
+	}
 }
 
 // handleResourceStateChange attempts to update resource's known status depending on
@@ -591,6 +599,10 @@ func (mtask *managedTask) handleStoppedToRunningContainerTransition(status apico
 	if !status.IsRunning() {
 		// Container's 'to' transition was not either of RUNNING or RESOURCES_PROVISIONED
 		// states. Nothing to do in this case as well
+		return
+	}
+	if !container.Essential {
+		seelog.Debugf("Not stopping non-essential container %s when it came back running", container.Name)
 		return
 	}
 	// If the container becomes running after we've stopped it (possibly
@@ -948,6 +960,15 @@ func (mtask *managedTask) containerNextState(container *apicontainer.Container) 
 	}
 
 	if containerKnownStatus > containerDesiredStatus {
+		if !container.Essential && containerKnownStatus == apicontainerstatus.ContainerStopped && containerDesiredStatus == apicontainerstatus.ContainerRunning {
+			// restarting non-essential container
+			seelog.Debugf("Restarting non-essential container: %s")
+			return &containerTransition{
+				nextState:      apicontainerstatus.ContainerRunning,
+				actionRequired: true,
+			}
+		}
+
 		seelog.Debugf("Managed task [%s]: container [%s] has already transitioned beyond desired status(%s): %s",
 			mtask.Arn, container.Name, containerKnownStatus.String(), containerDesiredStatus.String())
 		return &containerTransition{
