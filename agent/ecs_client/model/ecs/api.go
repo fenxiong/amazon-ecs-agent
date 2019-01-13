@@ -1,4 +1,4 @@
-// Copyright 2014-2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright 2014-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"). You may
 // not use this file except in compliance with the License. A copy of the
@@ -4417,9 +4417,9 @@ type ContainerDefinition struct {
 	//    name (for example, quay.io/assemblyline/ubuntu).
 	Image *string `locationName:"image" type:"string"`
 
-	Interactive *bool `locationName:"interactive" type:"boolean"`
-
 	InferenceDevices []*string `locationName:"inferenceDevices" type:"list"`
+
+	Interactive *bool `locationName:"interactive" type:"boolean"`
 
 	// The link parameter allows containers to communicate with each other without
 	// the need for port mappings. Only supported if the network mode of a task
@@ -4790,16 +4790,15 @@ func (s *ContainerDefinition) SetImage(v string) *ContainerDefinition {
 	return s
 }
 
+// SetInferenceDevices sets the InferenceDevices field's value.
+func (s *ContainerDefinition) SetInferenceDevices(v []*string) *ContainerDefinition {
+	s.InferenceDevices = v
+	return s
+}
 
 // SetInteractive sets the Interactive field's value.
 func (s *ContainerDefinition) SetInteractive(v bool) *ContainerDefinition {
 	s.Interactive = &v
-	return s
-}
-
-// SetInferenceDevices sets the InferenceDevices field's value.
-func (s *ContainerDefinition) SetInferenceDevices(v []*string) *ContainerDefinition {
-	s.InferenceDevices = v
 	return s
 }
 
@@ -9058,9 +9057,9 @@ type RegisterTaskDefinitionInput struct {
 	// Family is a required field
 	Family *string `locationName:"family" type:"string" required:"true"`
 
-	IpcMode *string `locationName:"ipcMode" type:"string" enum:"IpcMode"`
-
 	InferenceAccelerators []*InferenceAccelerator `locationName:"inferenceAccelerators" type:"list"`
+
+	IpcMode *string `locationName:"ipcMode" type:"string" enum:"IpcMode"`
 
 	// The amount of memory (in MiB) used by the task. It can be expressed as an
 	// integer using MiB, for example 1024, or as a string using GB, for example
@@ -9178,18 +9177,6 @@ func (s *RegisterTaskDefinitionInput) Validate() error {
 			}
 		}
 	}
-
-	if s.Tags != nil {
-		for i, v := range s.Tags {
-			if v == nil {
-				continue
-			}
-			if err := v.Validate(); err != nil {
-				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "Tags", i), err.(request.ErrInvalidParams))
-			}
-		}
-	}
-
 	if s.InferenceAccelerators != nil {
 		for i, v := range s.InferenceAccelerators {
 			if v == nil {
@@ -9197,6 +9184,16 @@ func (s *RegisterTaskDefinitionInput) Validate() error {
 			}
 			if err := v.Validate(); err != nil {
 				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "InferenceAccelerators", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
+	if s.Tags != nil {
+		for i, v := range s.Tags {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "Tags", i), err.(request.ErrInvalidParams))
 			}
 		}
 	}
@@ -9231,15 +9228,15 @@ func (s *RegisterTaskDefinitionInput) SetFamily(v string) *RegisterTaskDefinitio
 	return s
 }
 
-// SetIpcMode sets the IpcMode field's value.
-func (s *RegisterTaskDefinitionInput) SetIpcMode(v string) *RegisterTaskDefinitionInput {
-	s.IpcMode = &v
-	return s
-}
-
 // SetInferenceAccelerators sets the InferenceAccelerators field's value.
 func (s *RegisterTaskDefinitionInput) SetInferenceAccelerators(v []*InferenceAccelerator) *RegisterTaskDefinitionInput {
 	s.InferenceAccelerators = v
+	return s
+}
+
+// SetIpcMode sets the IpcMode field's value.
+func (s *RegisterTaskDefinitionInput) SetIpcMode(v string) *RegisterTaskDefinitionInput {
+	s.IpcMode = &v
 	return s
 }
 
@@ -10136,8 +10133,6 @@ type StartTaskInput struct {
 	// the JSON formatting characters of the override structure.
 	Overrides *TaskOverride `locationName:"overrides" type:"structure"`
 
-	Properties []*KeyValuePair `locationName:"properties" type:"list"`
-
 	// An optional tag specified when a task is started. For example if you automatically
 	// trigger a task to run a batch process job, you could apply a unique identifier
 	// for that job to your task with the startedBy parameter. You can then identify
@@ -10214,12 +10209,6 @@ func (s *StartTaskInput) SetNetworkConfiguration(v *NetworkConfiguration) *Start
 // SetOverrides sets the Overrides field's value.
 func (s *StartTaskInput) SetOverrides(v *TaskOverride) *StartTaskInput {
 	s.Overrides = v
-	return s
-}
-
-// SetProperties sets the Properties field's value.
-func (s *StartTaskInput) SetProperties(v []*KeyValuePair) *StartTaskInput {
-	s.Properties = v
 	return s
 }
 
@@ -11051,9 +11040,9 @@ type TaskDefinition struct {
 	// The family of your task definition, used as the definition name.
 	Family *string `locationName:"family" type:"string"`
 
-	IpcMode *string `locationName:"ipcMode" type:"string" enum:"IpcMode"`
-
 	InferenceAccelerators []*InferenceAccelerator `locationName:"inferenceAccelerators" type:"list"`
+
+	IpcMode *string `locationName:"ipcMode" type:"string" enum:"IpcMode"`
 
 	// The amount (in MiB) of memory used by the task. If using the EC2 launch type,
 	// this field is optional and any value can be used. If using the Fargate launch
@@ -11200,15 +11189,15 @@ func (s *TaskDefinition) SetFamily(v string) *TaskDefinition {
 	return s
 }
 
-// SetIpcMode sets the IpcMode field's value.
-func (s *TaskDefinition) SetIpcMode(v string) *TaskDefinition {
-	s.IpcMode = &v
-	return s
-}
-
 // SetInferenceAccelerators sets the InferenceAccelerators field's value.
 func (s *TaskDefinition) SetInferenceAccelerators(v []*InferenceAccelerator) *TaskDefinition {
 	s.InferenceAccelerators = v
+	return s
+}
+
+// SetIpcMode sets the IpcMode field's value.
+func (s *TaskDefinition) SetIpcMode(v string) *TaskDefinition {
+	s.IpcMode = &v
 	return s
 }
 
