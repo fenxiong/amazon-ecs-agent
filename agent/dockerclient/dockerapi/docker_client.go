@@ -372,6 +372,7 @@ func (dg *dockerGoClient) pullImage(ctx context.Context, image string, authData 
 		defer cancelRequest()
 		reader, err := client.ImagePull(subCtx, repository, imagePullOpts)
 		if err != nil {
+			seelog.Debugf("Got error from ImagePull API, err: %v", err)
 			pullFinished <- err
 			return
 		}
