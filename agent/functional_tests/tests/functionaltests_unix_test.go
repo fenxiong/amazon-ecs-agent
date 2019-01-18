@@ -47,6 +47,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	test_ecs "github.com/fenxiong/aws-sdk-go/service/ecs"
 )
 
 const (
@@ -58,6 +60,12 @@ const (
 	networkModeTaskDefinition       = "network-mode"
 	fluentdLogPath                  = "/tmp/ftslog"
 )
+
+func TestGPUSDK(t *testing.T) {
+	session := session.Must(session.NewSession())
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", svc)
+}
 
 // TestRunManyTasks runs several tasks in short succession and expects them to
 // all run.

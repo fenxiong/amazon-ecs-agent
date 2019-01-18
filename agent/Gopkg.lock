@@ -206,6 +206,13 @@
   version = "v0.3.2"
 
 [[projects]]
+  digest = "1:a528bdd6379d40a4be4e1033b5728fc3d089ecd9758eda7460eec0eb448442ae"
+  name = "github.com/fenxiong/aws-sdk-go"
+  packages = ["service/ecs"]
+  pruneopts = "UT"
+  revision = "b0261dffcbae3754d41d00ac22c879ad58a60989"
+
+[[projects]]
   digest = "1:57fa4c058c21ce25d0b7272518dd746065117abf6cc706158b0d361202024520"
   name = "github.com/godbus/dbus"
   packages = ["."]
@@ -524,6 +531,7 @@
     "github.com/docker/docker/pkg/system",
     "github.com/docker/go-connections/nat",
     "github.com/docker/go-units",
+    "github.com/fenxiong/aws-sdk-go/service/ecs",
     "github.com/golang/mock/gomock",
     "github.com/golang/mock/mockgen/model",
     "github.com/gorilla/mux",

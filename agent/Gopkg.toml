@@ -30,6 +30,10 @@ required = ["github.com/golang/mock/mockgen/model"]
   version = "1.14.30"
 
 [[constraint]]
+  name = "github.com/fenxiong/aws-sdk-go"
+  revision ="b0261dffcbae3754d41d00ac22c879ad58a60989"
+
+[[constraint]]
   name = "github.com/cihub/seelog"
   version ="2.6"
 
