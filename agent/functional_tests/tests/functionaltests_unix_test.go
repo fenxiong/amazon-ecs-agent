@@ -61,10 +61,266 @@ const (
 	fluentdLogPath                  = "/tmp/ftslog"
 )
 
-func TestGPUSDK(t *testing.T) {
-	session := session.Must(session.NewSession())
+func TestGPUSDKRegisterTaskDefinition(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+			Config: aws.Config{Region: aws.String("us-west-2")},
+		}))
 	svc := test_ecs.New(session)
-	t.Logf("Created ecs client with gpu sdk: %v", svc)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	input := test_ecs.RegisterTaskDefinitionInput{
+		Family: aws.String("test-gpu-sdk"),
+		ContainerDefinitions: []*test_ecs.ContainerDefinition{
+			{
+				Name: aws.String("container_1"),
+				Image: aws.String("amazonlinux:1"),
+				Command: aws.StringSlice([]string{"sh", "-c", "sleep 3600"}),
+				Memory: aws.Int64(512),
+				ResourceRequirements: []*test_ecs.ResourceRequirement{
+					{
+						Type: aws.String("GPU"),
+						Value: aws.String("2"),
+					},
+				},
+			},
+		},
+	}
+
+	output, err := svc.RegisterTaskDefinition(&input)
+	t.Logf("RegisterTaskDefinition output: %v", *output)
+	t.Logf("RegisterTaskDefinition error: %v", err)
+}
+
+func TestGPUSDKRegisterTaskDefinitionBigGPU(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String("us-west-2")},
+	}))
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	input := test_ecs.RegisterTaskDefinitionInput{
+		Family: aws.String("test-gpu-sdk"),
+		ContainerDefinitions: []*test_ecs.ContainerDefinition{
+			{
+				Name: aws.String("container_1"),
+				Image: aws.String("amazonlinux:1"),
+				Command: aws.StringSlice([]string{"sh", "-c", "sleep 3600"}),
+				Memory: aws.Int64(512),
+				ResourceRequirements: []*test_ecs.ResourceRequirement{
+					{
+						Type: aws.String("GPU"),
+						Value: aws.String("12"),
+					},
+				},
+			},
+		},
+	}
+
+	output, err := svc.RegisterTaskDefinition(&input)
+	t.Logf("RegisterTaskDefinition output: %v", *output)
+	t.Logf("RegisterTaskDefinition error: %v", err)
+}
+
+func TestGPUSDKRunTask(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String("us-west-2")},
+	}))
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	dciInput := &test_ecs.DescribeContainerInstancesInput{
+		Cluster: aws.String("test-gpu-sdk"),
+		ContainerInstances: aws.StringSlice([]string{"99a9bceb-1e9f-44e9-a74b-576b77d5e6c4"}),
+	}
+
+	dciOutput, err := svc.DescribeContainerInstances(dciInput)
+	t.Logf("Before running GPU Task")
+	t.Logf("DescribeContainerInstances output: %v", *dciOutput)
+	t.Logf("DescribeContainerInstances error: %v", err)
+	assert.NoError(t, err)
+
+	t.Logf("Running GPU Task...")
+
+	rtInput := &test_ecs.RunTaskInput{
+		Cluster: aws.String("test-gpu-sdk"),
+		TaskDefinition: aws.String("test-gpu-sdk"),
+	}
+
+	rtOutput, err := svc.RunTask(rtInput)
+	t.Logf("RunTask output: %v", *rtOutput)
+	t.Logf("RunTask error: %v", err)
+	assert.NoError(t, err)
+
+	dciOutput, err = svc.DescribeContainerInstances(dciInput)
+	t.Logf("After running GPU Task")
+	t.Logf("DescribeContainerInstances output: %v", *dciOutput)
+	t.Logf("DescribeContainerInstances error: %v", err)
+	assert.NoError(t, err)
+}
+
+func TestGPUSDKDescribeContainerInstance(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String("us-west-2")},
+	}))
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	dciInput := &test_ecs.DescribeContainerInstancesInput{
+		Cluster: aws.String("test-gpu-sdk"),
+		ContainerInstances: aws.StringSlice([]string{"99a9bceb-1e9f-44e9-a74b-576b77d5e6c4"}),
+	}
+
+	dciOutput, err := svc.DescribeContainerInstances(dciInput)
+	t.Logf("After running GPU Task")
+	t.Logf("DescribeContainerInstances output: %v", *dciOutput)
+	t.Logf("DescribeContainerInstances error: %v", err)
+
+}
+
+func TestGPUSDKDescribeTask(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String("us-west-2")},
+	}))
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	dtInput :=&test_ecs.DescribeTasksInput{
+		Cluster: aws.String("test-gpu-sdk"),
+		Tasks: aws.StringSlice([]string{"d4698834-da9a-418c-8b53-48b6c529a73b"}),
+	}
+
+	dtOutput, err := svc.DescribeTasks(dtInput)
+	t.Logf("DescribeTasks output: %v", *dtOutput)
+	t.Logf("DescribeTasks error: %v", err)
+}
+
+func TestGPUSDKRegisterTaskDefinitionInvalidCases(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String("us-west-2")},
+	}))
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	// Empty value
+	input1 := test_ecs.RegisterTaskDefinitionInput{
+		Family: aws.String("test-gpu-sdk"),
+		ContainerDefinitions: []*test_ecs.ContainerDefinition{
+			{
+				Name: aws.String("container_1"),
+				Image: aws.String("amazonlinux:1"),
+				Command: aws.StringSlice([]string{"sh", "-c", "exit 42"}),
+				Memory: aws.Int64(512),
+				ResourceRequirements: []*test_ecs.ResourceRequirement{
+					{
+						Type: aws.String("GPU"),
+					},
+				},
+			},
+		},
+	}
+
+	output1, err := svc.RegisterTaskDefinition(&input1)
+	printRegisterTaskDefinitionInvalidCaseOutput(t, "Empty Resource Requirement Value", output1, err)
+
+	// Empty type
+	input2 := test_ecs.RegisterTaskDefinitionInput{
+		Family: aws.String("test-gpu-sdk"),
+		ContainerDefinitions: []*test_ecs.ContainerDefinition{
+			{
+				Name: aws.String("container_1"),
+				Image: aws.String("amazonlinux:1"),
+				Command: aws.StringSlice([]string{"sh", "-c", "exit 42"}),
+				Memory: aws.Int64(512),
+				ResourceRequirements: []*test_ecs.ResourceRequirement{
+					{
+						Value: aws.String("2"),
+					},
+				},
+			},
+		},
+	}
+
+	output2, err := svc.RegisterTaskDefinition(&input2)
+	printRegisterTaskDefinitionInvalidCaseOutput(t, "Empty Resource Requirement Type", output2, err)
+
+	// Invalid type
+	input3 := test_ecs.RegisterTaskDefinitionInput{
+		Family: aws.String("test-gpu-sdk"),
+		ContainerDefinitions: []*test_ecs.ContainerDefinition{
+			{
+				Name: aws.String("container_1"),
+				Image: aws.String("amazonlinux:1"),
+				Command: aws.StringSlice([]string{"sh", "-c", "exit 42"}),
+				Memory: aws.Int64(512),
+				ResourceRequirements: []*test_ecs.ResourceRequirement{
+					{
+						Type: aws.String("invalid"),
+						Value: aws.String("2"),
+					},
+				},
+			},
+		},
+	}
+
+	output3, err := svc.RegisterTaskDefinition(&input3)
+	printRegisterTaskDefinitionInvalidCaseOutput(t, "Invalid Resource Requirement Type", output3, err)
+
+	// Fargate launch type
+	input4 := test_ecs.RegisterTaskDefinitionInput{
+		Family: aws.String("test-gpu-sdk"),
+		RequiresCompatibilities: aws.StringSlice([]string{"EC2", "FARGATE"}),
+		NetworkMode: aws.String("awsvpc"),
+		ContainerDefinitions: []*test_ecs.ContainerDefinition{
+			{
+				Name: aws.String("container_1"),
+				Image: aws.String("amazonlinux:1"),
+				Command: aws.StringSlice([]string{"sh", "-c", "exit 42"}),
+				Memory: aws.Int64(256),
+				ResourceRequirements: []*test_ecs.ResourceRequirement{
+					{
+						Type: aws.String("GPU"),
+						Value: aws.String("2"),
+					},
+				},
+			},
+		},
+	}
+	input4.SetCpu("256")
+	input4.SetMemory("512")
+
+	output4, err := svc.RegisterTaskDefinition(&input4)
+	printRegisterTaskDefinitionInvalidCaseOutput(t, "Invalid Resource Requirement Type", output4, err)
+}
+
+func printRegisterTaskDefinitionInvalidCaseOutput(t *testing.T, caseName string, output *test_ecs.RegisterTaskDefinitionOutput, err error) {
+	t.Logf("===== Invalid Case: %s =====", caseName)
+	t.Logf("RegisterTaskDefinition output: %v", output)
+	t.Logf("RegisterTaskDefinition error: %v", err)
+	//if err != nil {
+	//	if awsErr, ok := err.(awserr.Error); ok {
+	//		t.Logf("Error code: %s; error message: %s", awsErr.Code(), awsErr.Message())
+	//		t.Logf("Full error: %v", awsErr.Error())
+	//	} else {
+	//		t.Log("Cannot convert error to awsErr")
+	//	}
+	//}
+	t.Logf("===== End Invalid Case =====\n")
+}
+
+func TestGPUSDKDescribeTaskDefinition(t *testing.T) {
+	session := session.Must(session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{Region: aws.String("us-west-2")},
+	}))
+	svc := test_ecs.New(session)
+	t.Logf("Created ecs client with gpu sdk: %v", *svc)
+
+	input := test_ecs.DescribeTaskDefinitionInput{
+		TaskDefinition: aws.String("test-gpu-sdk:2"),
+	}
+
+	output, err := svc.DescribeTaskDefinition(&input)
+	t.Logf("DescribeTaskDefinition output: %v", *output)
+	t.Logf("DescribeTaskDefinition error: %v", err)
 }
 
 // TestRunManyTasks runs several tasks in short succession and expects them to
