@@ -23,8 +23,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	ENIAttachmentTypeENI = "eni"
+	ENIAttachmentTypeTrunkENI = "trunk-eni"
+)
+
 // ENIAttachment contains the information of the eni attachment
 type ENIAttachment struct {
+	// AttachmentType is the type of the eni attachment, can either be "eni" or "trunk-eni"
+	AttachmentType string `json:"attachmentType"`
 	// TaskARN is the task identifier from ecs
 	TaskARN string `json:"taskArn"`
 	// AttachmentARN is the identifier for the eni attachment
@@ -109,6 +116,13 @@ func (eni *ENIAttachment) String() string {
 
 // stringUnsafe returns a string representation of the ENI Attachment
 func (eni *ENIAttachment) stringUnsafe() string {
+	// skip TaskArn field for trunk eni attachment since it won't have a task arn
+	if eni.AttachmentType == ENIAttachmentTypeTrunkENI {
+		return fmt.Sprintf(
+			"ENI Attachment: attachment=%s;attachmentSent=%t;mac=%s;status=%s;expiresAt=%s",
+				eni.AttachmentARN, eni.AttachStatusSent, eni.MACAddress, eni.Status.String(), eni.ExpiresAt.String())
+	}
+
 	return fmt.Sprintf(
 		"ENI Attachment: task=%s;attachment=%s;attachmentSent=%t;mac=%s;status=%s;expiresAt=%s",
 		eni.TaskARN, eni.AttachmentARN, eni.AttachStatusSent, eni.MACAddress, eni.Status.String(), eni.ExpiresAt.String())

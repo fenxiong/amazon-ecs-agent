@@ -32,73 +32,63 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	eniMessageId      = "123"
-	randomMAC         = "00:0a:95:9d:68:16"
-	waitTimeoutMillis = 10
-)
-
-// TestAttachENIMessageWithNoMessageId checks the validator against an
-// AttachTaskNetworkInterfacesMessage without a messageId
-func TestAttachENIMessageWithNoMessageId(t *testing.T) {
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+// TestAttachInstanceENIMessageWithNoMessageId checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without a messageId
+func TestAttachInstanceENIMessageWithNoMessageId(t *testing.T) {
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		ClusterArn:               aws.String(clusterName),
 		ContainerInstanceArn:     aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{},
-		TaskArn:                  aws.String(taskArn),
 		WaitTimeoutMs:            aws.Int64(waitTimeoutMillis),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithNoClusterArn checks the validator against an
-// AttachTaskNetworkInterfacesMessage without a ClusterArn
-func TestAttachENIMessageWithNoClusterArn(t *testing.T) {
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+// TestAttachInstanceENIMessageWithNoClusterArn checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without a ClusterArn
+func TestAttachInstanceENIMessageWithNoClusterArn(t *testing.T) {
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:                aws.String(eniMessageId),
 		ContainerInstanceArn:     aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{},
-		TaskArn:                  aws.String(taskArn),
 		WaitTimeoutMs:            aws.Int64(waitTimeoutMillis),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithNoContainerInstanceArn checks the validator against an
-// AttachTaskNetworkInterfacesMessage without a ContainerInstanceArn
-func TestAttachENIMessageWithNoContainerInstanceArn(t *testing.T) {
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+// TestAttachInstanceENIMessageWithNoContainerInstanceArn checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without a ContainerInstanceArn
+func TestAttachInstanceENIMessageWithNoContainerInstanceArn(t *testing.T) {
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:                aws.String(eniMessageId),
 		ClusterArn:               aws.String(clusterName),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{},
-		TaskArn:                  aws.String(taskArn),
 		WaitTimeoutMs:            aws.Int64(waitTimeoutMillis),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithNoInterfaces checks the validator against an
-// AttachTaskNetworkInterfacesMessage without any interface
-func TestAttachENIMessageWithNoInterfaces(t *testing.T) {
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+// TestAttachInstanceENIMessageWithNoInterfaces checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without any interface
+func TestAttachInstanceENIMessageWithNoInterfaces(t *testing.T) {
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:     aws.String(eniMessageId),
 		ClusterArn:    aws.String(clusterName),
-		TaskArn:       aws.String(taskArn),
 		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithMultipleInterfaceschecks checks the validator against an
-// AttachTaskNetworkInterfacesMessage with multiple interfaces
-func TestAttachENIMessageWithMultipleInterfaces(t *testing.T) {
+// TestAttachInstanceENIMessageWithMultipleInterfaces checks the validator against an
+// AttachInstanceNetworkInterfacesMessage with multiple interfaces
+func TestAttachInstanceENIMessageWithMultipleInterfaces(t *testing.T) {
 	mockNetInterface1 := ecsacs.ElasticNetworkInterface{
 		MacAddress: aws.String(randomMAC),
 		Ec2Id:      aws.String("1"),
@@ -107,74 +97,46 @@ func TestAttachENIMessageWithMultipleInterfaces(t *testing.T) {
 		MacAddress: aws.String(randomMAC),
 		Ec2Id:      aws.String("2"),
 	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
 			&mockNetInterface1,
 			&mockNetInterface2,
-		},
-		TaskArn:       aws.String(taskArn),
-		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
+		}, WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithMissingNetworkDetails checks the validator against an
-// AttachTaskNetworkInterfacesMessage without network details
-func TestAttachENIMessageWithMissingNetworkDetails(t *testing.T) {
+// TestAttachInstanceENIMessageWithMissingNetworkDetails checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without network details
+func TestAttachInstanceENIMessageWithMissingNetworkDetails(t *testing.T) {
 	mockNetInterface1 := ecsacs.ElasticNetworkInterface{}
 
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
 			&mockNetInterface1,
 		},
-		TaskArn:       aws.String(taskArn),
 		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithMissingMACAddress checks the validator against an
-// AttachTaskNetworkInterfacesMessage without a MAC address
-func TestAttachENIMessageWithMissingMACAddress(t *testing.T) {
+// TestAttachInstanceENIMessageWithMissingMACAddress checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without a MAC address
+func TestAttachInstanceENIMessageWithMissingMACAddress(t *testing.T) {
 	mockNetInterface1 := ecsacs.ElasticNetworkInterface{
 		Ec2Id: aws.String("1"),
 	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
-		MessageId:            aws.String(eniMessageId),
-		ClusterArn:           aws.String(clusterName),
-		ContainerInstanceArn: aws.String(containerInstanceArn),
-		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
-			&mockNetInterface1,
-		},
-		TaskArn:       aws.String(taskArn),
-		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
-	}
-
-	err := validateAttachTaskNetworkInterfacesMessage(message)
-	assert.Error(t, err)
-}
-
-// TODO:
-// * Add TaskArn + Timeout Tests
-
-// TestAttachENIMessageWithMissingTaskArn checks the validator against an
-// AttachTaskNetworkInterfacesMessage without a MAC address
-func TestAttachENIMessageWithMissingTaskArn(t *testing.T) {
-	mockNetInterface1 := ecsacs.ElasticNetworkInterface{
-		Ec2Id:      aws.String("1"),
-		MacAddress: aws.String(randomMAC),
-	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
@@ -184,32 +146,31 @@ func TestAttachENIMessageWithMissingTaskArn(t *testing.T) {
 		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestAttachENIMessageWithMissingTimeout checks the validator against an
-// AttachTaskNetworkInterfacesMessage without a MAC address
-func TestAttachENIMessageWithMissingTimeout(t *testing.T) {
+// TestAttachInstanceENIMessageWithMissingTimeout checks the validator against an
+// AttachInstanceNetworkInterfacesMessage without a MAC address
+func TestAttachInstanceENIMessageWithMissingTimeout(t *testing.T) {
 	mockNetInterface1 := ecsacs.ElasticNetworkInterface{
 		Ec2Id: aws.String("1"),
 	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
 			&mockNetInterface1,
 		},
-		TaskArn: aws.String(taskArn),
 	}
 
-	err := validateAttachTaskNetworkInterfacesMessage(message)
+	err := validateAttachInstanceNetworkInterfacesMessage(message)
 	assert.Error(t, err)
 }
 
-// TestENIAckSingleMessage checks the ack for a single message
-func TestENIAckSingleMessage(t *testing.T) {
+// TestInstanceENIAckSingleMessage checks the ack for a single message
+func TestInstanceENIAckSingleMessage(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -218,7 +179,7 @@ func TestENIAckSingleMessage(t *testing.T) {
 
 	ctx := context.TODO()
 	mockWSClient := mock_wsclient.NewMockClientServer(ctrl)
-	eniAttachHandler := newAttachENIHandler(ctx, clusterName, containerInstanceArn, mockWSClient, taskEngineState, manager)
+	handler := newAttachInstanceENIHandler(ctx, clusterName, containerInstanceArn, mockWSClient, taskEngineState, manager)
 
 	var ackSent sync.WaitGroup
 	ackSent.Add(1)
@@ -229,41 +190,39 @@ func TestENIAckSingleMessage(t *testing.T) {
 	gomock.InOrder(
 		manager.EXPECT().Save().Do(func() {
 			assert.Len(t, taskEngineState.(*dockerstate.DockerTaskEngineState).AllENIAttachments(), 1)
-			eniattachment, ok := taskEngineState.ENIByMac(randomMAC)
+			_, ok := taskEngineState.ENIByMac(randomMAC)
 			assert.True(t, ok)
-			assert.Equal(t, taskArn, eniattachment.TaskARN)
-			eniAttachHandler.stop()
+			handler.stop()
 		}).Return(nil),
 	)
-	go eniAttachHandler.start()
+	go handler.start()
 
 	mockNetInterface1 := ecsacs.ElasticNetworkInterface{
 		Ec2Id:         aws.String("1"),
 		MacAddress:    aws.String(randomMAC),
-		AttachmentArn: aws.String("attachmentarn"),
+		AttachmentArn: aws.String(attachmentArn),
 	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
 			&mockNetInterface1,
 		},
-		TaskArn:       aws.String(taskArn),
 		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
 
-	eniAttachHandler.messageBuffer <- message
+	handler.messageBuffer <- message
 
 	select {
-	case <-eniAttachHandler.ctx.Done():
+	case <-handler.ctx.Done():
 	}
 	ackSent.Wait()
 }
 
-// TestENIAckSingleMessageDuplicateENIAttachmentMessageStartsTimer checks the ack for a single message
+// TestInstanceENIAckSingleMessageDuplicateENIAttachmentMessageStartsTimer checks the ack for a single message
 // and ensures that the ENI ack expiration timer is started
-func TestENIAckSingleMessageDuplicateENIAttachmentMessageStartsTimer(t *testing.T) {
+func TestInstanceENIAckSingleMessageDuplicateENIAttachmentMessageStartsTimer(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -272,7 +231,7 @@ func TestENIAckSingleMessageDuplicateENIAttachmentMessageStartsTimer(t *testing.
 
 	ctx := context.TODO()
 	mockWSClient := mock_wsclient.NewMockClientServer(ctrl)
-	eniAttachHandler := newAttachENIHandler(ctx, clusterName, containerInstanceArn, mockWSClient, mockState, manager)
+	handler := newAttachInstanceENIHandler(ctx, clusterName, containerInstanceArn, mockWSClient, mockState, manager)
 
 	// Set expiresAt to a value in the past
 	expiresAt := time.Unix(time.Now().Unix()-1, 0)
@@ -296,25 +255,24 @@ func TestENIAckSingleMessageDuplicateENIAttachmentMessageStartsTimer(t *testing.
 		MacAddress:    aws.String(randomMAC),
 		AttachmentArn: aws.String("attachmentarn"),
 	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
 			&mockNetInterface1,
 		},
-		TaskArn:       aws.String(taskArn),
 		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
 
 	// Expect an error starting the timer because of <=0 duration
-	err := eniAttachHandler.handleSingleMessage(message)
+	err := handler.handleSingleMessage(message)
 	assert.Error(t, err)
 	ackSent.Wait()
 }
 
-// TestENIAckHappyPath tests the happy path for a typical AttachTaskNetworkInterfacesMessage
-func TestENIAckHappyPath(t *testing.T) {
+// TestInstanceENIAckHappyPath tests the happy path for a typical AttachTaskNetworkInterfacesMessage
+func TestInstanceENIAckHappyPath(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -323,38 +281,38 @@ func TestENIAckHappyPath(t *testing.T) {
 	manager := mock_statemanager.NewMockStateManager(ctrl)
 
 	mockWSClient := mock_wsclient.NewMockClientServer(ctrl)
-	eniAttachHandler := newAttachENIHandler(ctx, clusterName, containerInstanceArn, mockWSClient, taskEngineState, manager)
+	handler := newAttachInstanceENIHandler(ctx, clusterName, containerInstanceArn, mockWSClient, taskEngineState, manager)
 
 	var ackSent sync.WaitGroup
 	ackSent.Add(1)
 	mockWSClient.EXPECT().MakeRequest(gomock.Any()).Do(func(ackRequest *ecsacs.AckRequest) {
 		assert.Equal(t, aws.StringValue(ackRequest.MessageId), eniMessageId)
 		ackSent.Done()
-		eniAttachHandler.stop()
+		handler.stop()
 	})
 	manager.EXPECT().Save().Return(nil).AnyTimes()
 
-	go eniAttachHandler.start()
+	go handler.start()
 
 	mockNetInterface1 := ecsacs.ElasticNetworkInterface{
 		Ec2Id:      aws.String("1"),
 		MacAddress: aws.String(randomMAC),
 	}
-	message := &ecsacs.AttachTaskNetworkInterfacesMessage{
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
 		MessageId:            aws.String(eniMessageId),
 		ClusterArn:           aws.String(clusterName),
 		ContainerInstanceArn: aws.String(containerInstanceArn),
 		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
 			&mockNetInterface1,
 		},
-		TaskArn:       aws.String(taskArn),
 		WaitTimeoutMs: aws.Int64(waitTimeoutMillis),
 	}
 
-	eniAttachHandler.messageBuffer <- message
+	handler.messageBuffer <- message
 
 	ackSent.Wait()
 	select {
-	case <-eniAttachHandler.ctx.Done():
+	case <-handler.ctx.Done():
 	}
 }
+

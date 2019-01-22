@@ -1,4 +1,4 @@
-// Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// Copyright 2017-2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"). You may
 // not use this file except in compliance with the License. A copy of the
@@ -29,7 +29,7 @@ import (
 	"context"
 )
 
-// attachENIHandler represents the ENI attach operation for the ACS client
+// attachENIHandler handles task ENI attach operation for the ACS client
 type attachENIHandler struct {
 	messageBuffer     chan *ecsacs.AttachTaskNetworkInterfacesMessage
 	ctx               context.Context
@@ -104,71 +104,14 @@ func (handler *attachENIHandler) handleSingleMessage(message *ecsacs.AttachTaskN
 	}
 
 	// Send ACK
-	go func(clusterArn *string, containerInstanceArn *string, messageID *string) {
-		if err := handler.acsClient.MakeRequest(&ecsacs.AckRequest{
-			Cluster:           clusterArn,
-			ContainerInstance: containerInstanceArn,
-			MessageId:         messageID,
-		}); err != nil {
-			seelog.Warnf("Failed to ack request with messageId: %s, error: %v", aws.StringValue(messageID), err)
-		}
-	}(message.ClusterArn, message.ContainerInstanceArn, message.MessageId)
+	go sendAck(handler.acsClient, message.ClusterArn, message.ContainerInstanceArn, message.MessageId)
 
-	// Check if this is a duplicate message
-	mac := aws.StringValue(message.ElasticNetworkInterfaces[0].MacAddress)
-	if eniAttachment, ok := handler.state.ENIByMac(mac); ok {
-		seelog.Infof("Duplicate ENI attachment message for ENI with MAC address: %s", mac)
-		eniAckTimeoutHandler := ackTimeoutHandler{mac: mac, state: handler.state}
-		return eniAttachment.StartTimer(eniAckTimeoutHandler.handle)
-	}
-	if err := handler.addENIAttachmentToState(message, receivedAt); err != nil {
-		return errors.Wrapf(err, "attach eni message handler: unable to add eni attachment to engine state")
-	}
-	if err := handler.saver.Save(); err != nil {
-		return errors.Wrapf(err, "attach eni message handler: unable to save agent state")
-	}
-	return nil
-}
-
-// addENIAttachmentToState adds the eni info to the state
-func (handler *attachENIHandler) addENIAttachmentToState(message *ecsacs.AttachTaskNetworkInterfacesMessage, receivedAt time.Time) error {
+	// Handle the attachment
 	attachmentARN := aws.StringValue(message.ElasticNetworkInterfaces[0].AttachmentArn)
-	mac := aws.StringValue(message.ElasticNetworkInterfaces[0].MacAddress)
 	taskARN := aws.StringValue(message.TaskArn)
-	eniAttachment := &apieni.ENIAttachment{
-		TaskARN:          taskARN,
-		AttachmentARN:    attachmentARN,
-		AttachStatusSent: false,
-		MACAddress:       mac,
-		// Stop tracking the eni attachment after timeout
-		ExpiresAt: receivedAt.Add(time.Duration(aws.Int64Value(message.WaitTimeoutMs)) * time.Millisecond),
-	}
-	eniAckTimeoutHandler := ackTimeoutHandler{mac: mac, state: handler.state}
-	if err := eniAttachment.StartTimer(eniAckTimeoutHandler.handle); err != nil {
-		return err
-	}
-	seelog.Infof("Adding eni info for task '%s' to state, attachment=%s mac=%s",
-		taskARN, attachmentARN, mac)
-	handler.state.AddENIAttachment(eniAttachment)
-	return nil
-}
-
-// ackTimeoutHandler remove ENI attachment from agent state after the ENI ack timeout
-type ackTimeoutHandler struct {
-	mac   string
-	state dockerstate.TaskEngineState
-}
-
-func (handler *ackTimeoutHandler) handle() {
-	eniAttachment, ok := handler.state.ENIByMac(handler.mac)
-	if !ok {
-		seelog.Warnf("Timed out waiting for ENI ack; ignoring unmanaged ENI attachment with MAC address: %s", handler.mac)
-		return
-	}
-	if !eniAttachment.IsSent() {
-		seelog.Infof("Timed out waiting for ENI ack; removing ENI attachment record with MAC address: %s", handler.mac)
-		handler.state.RemoveENIAttachment(handler.mac)
-	}
+	mac := aws.StringValue(message.ElasticNetworkInterfaces[0].MacAddress)
+	expiresAt := receivedAt.Add(time.Duration(aws.Int64Value(message.WaitTimeoutMs)) * time.Millisecond)
+	return handleENIAttachment(apieni.ENIAttachmentTypeENI, attachmentARN, taskARN, mac, expiresAt, handler.state, handler.saver)
 }
 
 // validateAttachTaskNetworkInterfacesMessage performs validation checks on the
