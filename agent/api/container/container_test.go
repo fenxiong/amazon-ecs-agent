@@ -327,7 +327,7 @@ func TestMergeEnvironmentVariables(t *testing.T) {
 		},
 
 		{
-			Name: "merge single item to nil container env var map",
+			Name:                   "merge single item to nil container env var map",
 			InContainerEnvironment: nil,
 			InEnvVarMap: map[string]string{
 				"SECRET1": "secret1"},
@@ -357,7 +357,7 @@ func TestMergeEnvironmentVariables(t *testing.T) {
 		},
 
 		{
-			Name: "merge nil to nil container env var map",
+			Name:                   "merge nil to nil container env var map",
 			InContainerEnvironment: nil,
 			InEnvVarMap:            nil,
 			OutEnvVarMap:           map[string]string{},

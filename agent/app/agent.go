@@ -310,8 +310,9 @@ func (agent *ecsAgent) doStart(containerChangeEventStream *eventstream.EventStre
 		deregisterContainerInstanceEventStreamName, agent.ctx)
 	deregisterInstanceEventStream.StartListening()
 	taskHandler := eventhandler.NewTaskHandler(agent.ctx, stateManager, state, client)
+	attachmentHandler := eventhandler.NewAttachmentHandler(agent.ctx, stateManager, client)
 	agent.startAsyncRoutines(containerChangeEventStream, credentialsManager, imageManager,
-		taskEngine, stateManager, deregisterInstanceEventStream, client, taskHandler, state)
+		taskEngine, stateManager, deregisterInstanceEventStream, client, taskHandler, attachmentHandler, state)
 
 	// Start the acs session, which should block doStart
 	return agent.startACSSession(credentialsManager, taskEngine, stateManager,
@@ -571,6 +572,7 @@ func (agent *ecsAgent) startAsyncRoutines(
 	deregisterInstanceEventStream *eventstream.EventStream,
 	client api.ECSClient,
 	taskHandler *eventhandler.TaskHandler,
+	attachmentHandler *eventhandler.AttachmentHandler,
 	state dockerstate.TaskEngineState) {
 
 	// Start of the periodic image cleanup process
@@ -594,7 +596,7 @@ func (agent *ecsAgent) startAsyncRoutines(
 	}
 
 	// Start sending events to the backend
-	go eventhandler.HandleEngineEvents(taskEngine, client, taskHandler)
+	go eventhandler.HandleEngineEvents(taskEngine, client, taskHandler, attachmentHandler)
 
 	telemetrySessionParams := tcshandler.TelemetrySessionParams{
 		Ctx:                           agent.ctx,
