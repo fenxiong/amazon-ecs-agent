@@ -446,6 +446,21 @@
         {"shape":"ClusterNotFoundException"}
       ]
     },
+    "SubmitAttachmentStateChange":{
+      "name":"SubmitAttachmentStateChange",
+      "http":{
+        "method":"POST",
+        "requestUri":"/"
+      },
+      "input":{"shape":"SubmitAttachmentStateChangeRequest"},
+      "output":{"shape":"SubmitAttachmentStateChangeResponse"},
+      "errors":[
+        {"shape":"ServerException"},
+        {"shape":"ClientException"},
+        {"shape":"AccessDeniedException"},
+        {"shape":"InvalidParameterException"}
+      ]
+    },
     "SubmitContainerStateChange":{
       "name":"SubmitContainerStateChange",
       "http":{
@@ -1890,6 +1905,19 @@
       "type":"map",
       "key":{"shape":"String"},
       "value":{"shape":"String"}
+    },
+    "SubmitAttachmentStateChangeRequest":{
+      "type":"structure",
+      "members":{
+        "cluster":{"shape":"String"},
+        "attachment":{"shape":"AttachmentStateChange"}
+      }
+    },
+    "SubmitAttachmentStateChangeResponse":{
+      "type":"structure",
+      "members":{
+        "acknowledgment":{"shape":"String"}
+      }
     },
     "SubmitContainerStateChangeRequest":{
       "type":"structure",
