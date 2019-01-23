@@ -3143,6 +3143,92 @@ func (c *ECS) StopTaskWithContext(ctx aws.Context, input *StopTaskInput, opts ..
 	return out, req.Send()
 }
 
+const opSubmitAttachmentStateChange = "SubmitAttachmentStateChange"
+
+// SubmitAttachmentStateChangeRequest generates a "aws/request.Request" representing the
+// client's request for the SubmitAttachmentStateChange operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See SubmitAttachmentStateChange for more information on using the SubmitAttachmentStateChange
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the SubmitAttachmentStateChangeRequest method.
+//    req, resp := client.SubmitAttachmentStateChangeRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+func (c *ECS) SubmitAttachmentStateChangeRequest(input *SubmitAttachmentStateChangeInput) (req *request.Request, output *SubmitAttachmentStateChangeOutput) {
+	op := &request.Operation{
+		Name:       opSubmitAttachmentStateChange,
+		HTTPMethod: "POST",
+		HTTPPath:   "/",
+	}
+
+	if input == nil {
+		input = &SubmitAttachmentStateChangeInput{}
+	}
+
+	output = &SubmitAttachmentStateChangeOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// SubmitAttachmentStateChange API operation for Amazon EC2 Container Service.
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon EC2 Container Service's
+// API operation SubmitAttachmentStateChange for usage and error information.
+//
+// Returned Error Codes:
+//   * ErrCodeServerException "ServerException"
+//   These errors are usually caused by a server issue.
+//
+//   * ErrCodeClientException "ClientException"
+//   These errors are usually caused by a client action, such as using an action
+//   or resource on behalf of a user that doesn't have permissions to use the
+//   action or resource, or specifying an identifier that is not valid.
+//
+//   * ErrCodeAccessDeniedException "AccessDeniedException"
+//   You do not have authorization to perform the requested action.
+//
+//   * ErrCodeInvalidParameterException "InvalidParameterException"
+//   The specified parameter is invalid. Review the available parameters for the
+//   API request.
+//
+func (c *ECS) SubmitAttachmentStateChange(input *SubmitAttachmentStateChangeInput) (*SubmitAttachmentStateChangeOutput, error) {
+	req, out := c.SubmitAttachmentStateChangeRequest(input)
+	return out, req.Send()
+}
+
+// SubmitAttachmentStateChangeWithContext is the same as SubmitAttachmentStateChange with the addition of
+// the ability to pass a context and additional request options.
+//
+// See SubmitAttachmentStateChange for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *ECS) SubmitAttachmentStateChangeWithContext(ctx aws.Context, input *SubmitAttachmentStateChangeInput, opts ...request.Option) (*SubmitAttachmentStateChangeOutput, error) {
+	req, out := c.SubmitAttachmentStateChangeRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
 const opSubmitContainerStateChange = "SubmitContainerStateChange"
 
 // SubmitContainerStateChangeRequest generates a "aws/request.Request" representing the
@@ -10310,6 +10396,74 @@ func (s StopTaskOutput) GoString() string {
 // SetTask sets the Task field's value.
 func (s *StopTaskOutput) SetTask(v *Task) *StopTaskOutput {
 	s.Task = v
+	return s
+}
+
+type SubmitAttachmentStateChangeInput struct {
+	_ struct{} `type:"structure"`
+
+	// An object representing a change in state for a task attachment.
+	Attachment *AttachmentStateChange `locationName:"attachment" type:"structure"`
+
+	Cluster *string `locationName:"cluster" type:"string"`
+}
+
+// String returns the string representation
+func (s SubmitAttachmentStateChangeInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s SubmitAttachmentStateChangeInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *SubmitAttachmentStateChangeInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "SubmitAttachmentStateChangeInput"}
+	if s.Attachment != nil {
+		if err := s.Attachment.Validate(); err != nil {
+			invalidParams.AddNested("Attachment", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetAttachment sets the Attachment field's value.
+func (s *SubmitAttachmentStateChangeInput) SetAttachment(v *AttachmentStateChange) *SubmitAttachmentStateChangeInput {
+	s.Attachment = v
+	return s
+}
+
+// SetCluster sets the Cluster field's value.
+func (s *SubmitAttachmentStateChangeInput) SetCluster(v string) *SubmitAttachmentStateChangeInput {
+	s.Cluster = &v
+	return s
+}
+
+type SubmitAttachmentStateChangeOutput struct {
+	_ struct{} `type:"structure"`
+
+	Acknowledgment *string `locationName:"acknowledgment" type:"string"`
+}
+
+// String returns the string representation
+func (s SubmitAttachmentStateChangeOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s SubmitAttachmentStateChangeOutput) GoString() string {
+	return s.String()
+}
+
+// SetAcknowledgment sets the Acknowledgment field's value.
+func (s *SubmitAttachmentStateChangeOutput) SetAcknowledgment(v string) *SubmitAttachmentStateChangeOutput {
+	s.Acknowledgment = &v
 	return s
 }
 
