@@ -45,6 +45,8 @@ const (
 	capabilityECREndpoint                       = "ecr-endpoint"
 	capabilityContainerOrdering                 = "container-ordering"
 	taskEIAAttributeSuffix                      = "task-eia"
+	taskENITrunkingAttributeSuffix              = "task-eni-trunking"
+	branchCNIPluginVersionSuffix                = "branch-cni-plugin-version"
 )
 
 // capabilities returns the supported capabilities of this agent / docker-client pair.
@@ -79,6 +81,7 @@ const (
 //    ecs.capability.secrets.asm.environment-variables
 //    ecs.capability.aws-appmesh
 //    ecs.capability.task-eia
+//    ecs.capability.task-eni-trunking
 func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 	var capabilities []*ecs.Attribute
 
@@ -236,6 +239,7 @@ func (agent *ecsAgent) appendTaskENICapabilities(capabilities []*ecs.Attribute) 
 			return capabilities
 		}
 		capabilities = append(capabilities, taskENIVersionAttribute)
+
 		// We only care about AWSVPCBlockInstanceMetdata if Task ENI is enabled
 		if agent.cfg.AWSVPCBlockInstanceMetdata {
 			// If the Block Instance Metadata flag is set for AWS VPC networking mode, register a capability
@@ -244,6 +248,16 @@ func (agent *ecsAgent) appendTaskENICapabilities(capabilities []*ecs.Attribute) 
 				Name: aws.String(attributePrefix + taskENIBlockInstanceMetadataAttributeSuffix),
 			})
 		}
+	}
+
+	if agent.cfg.ENITrunkingEnabled {
+		capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+taskENITrunkingAttributeSuffix)
+
+		branchENIVersionAttribute, err := agent.getBranchENIPluginVersionAttribute()
+		if err != nil {
+			return capabilities
+		}
+		capabilities = append(capabilities, branchENIVersionAttribute)
 	}
 	return capabilities
 }
@@ -265,6 +279,21 @@ func (agent *ecsAgent) getTaskENIPluginVersionAttribute() (*ecs.Attribute, error
 
 	return &ecs.Attribute{
 		Name:  aws.String(attributePrefix + cniPluginVersionSuffix),
+		Value: aws.String(version),
+	}, nil
+}
+
+func (agent *ecsAgent) getBranchENIPluginVersionAttribute() (*ecs.Attribute, error) {
+	version, err := agent.cniClient.Version(ecscni.ECSBranchENIPluginName)
+	if err != nil {
+		seelog.Warnf(
+			"Unable to determine the version of the plugin '%s': %v",
+			ecscni.ECSBranchENIPluginName, err)
+		return nil, err
+	}
+
+	return &ecs.Attribute{
+		Name:  aws.String(attributePrefix + branchCNIPluginVersionSuffix),
 		Value: aws.String(version),
 	}, nil
 }

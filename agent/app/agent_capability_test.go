@@ -58,6 +58,7 @@ func TestCapabilities(t *testing.T) {
 		SELinuxCapable:             true,
 		AppArmorCapable:            true,
 		TaskENIEnabled:             true,
+		ENITrunkingEnabled:         true,
 		AWSVPCBlockInstanceMetdata: true,
 		TaskCleanupWaitDuration:    config.DefaultConfig().TaskCleanupWaitDuration,
 	}
@@ -74,6 +75,7 @@ func TestCapabilities(t *testing.T) {
 			dockerclient.Version_1_19,
 		}),
 		cniClient.EXPECT().Version(ecscni.ECSENIPluginName).Return("v1", nil),
+		cniClient.EXPECT().Version(ecscni.ECSBranchENIPluginName).Return("v2", nil),
 		mockMobyPlugins.EXPECT().Scan().AnyTimes().Return([]string{}, nil),
 		client.EXPECT().ListPluginsWithFilters(gomock.Any(), gomock.Any(), gomock.Any(),
 			gomock.Any()).AnyTimes().Return([]string{}, nil),
@@ -104,6 +106,13 @@ func TestCapabilities(t *testing.T) {
 			},
 			{
 				Name: aws.String(attributePrefix + taskENIBlockInstanceMetadataAttributeSuffix),
+			},
+			{
+				Name: aws.String(attributePrefix + taskENITrunkingAttributeSuffix),
+			},
+			{
+				Name:  aws.String(attributePrefix + branchCNIPluginVersionSuffix),
+				Value: aws.String("v2"),
 			},
 			{
 				Name: aws.String("ecs.capability.docker-plugin.local"),
