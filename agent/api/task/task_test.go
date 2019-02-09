@@ -2535,18 +2535,15 @@ func TestPopulateSecrets(t *testing.T) {
 	hostConfig.LogConfig.Config = configMap
 	hostConfig.LogConfig.Config[secret3.Name] = "secretVal4"
 
-	ssmRes1 := &ssmsecret.SSMSecretResource{}
-	ssmRes1.SetCachedSecretValue(secretKeyWest1, "secretValue1")
+	ssmRes := &ssmsecret.SSMSecretResource{}
+	ssmRes.SetCachedSecretValue(secretKeyWest1, "secretValue1")
+	ssmRes.SetCachedSecretValue(secKeyLogDriver, "secretValue3")
 
 	asmRes := &asmsecret.ASMSecretResource{}
 	asmRes.SetCachedSecretValue(asmSecretKeyWest1, "secretValue2")
 
-	ssmRes2 := &ssmsecret.SSMSecretResource{}
-	ssmRes2.SetCachedSecretValue(secKeyLogDriver, "secretValue3")
-
-	task.AddResource(ssmsecret.ResourceName, ssmRes1)
+	task.AddResource(ssmsecret.ResourceName, ssmRes)
 	task.AddResource(asmsecret.ResourceName, asmRes)
-	task.AddResource(ssmsecret.ResourceName, ssmRes2)
 
 	task.PopulateSecrets(hostConfig, container)
 	assert.Equal(t, "secretValue1", container.Environment["secret1"])

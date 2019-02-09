@@ -1741,6 +1741,7 @@ func (task *Task) getSSMSecretsResource() ([]taskresource.TaskResource, bool) {
 func (task *Task) PopulateSecrets(hostConfig *dockercontainer.HostConfig, container *apicontainer.Container) *apierrors.DockerClientConfigError {
 	var ssmRes *ssmsecret.SSMSecretResource
 	var asmRes *asmsecret.ASMSecretResource
+	seelog.Info("In PopulateSecrets")
 
 	if container.ShouldCreateWithSSMSecret() {
 		resource, ok := task.getSSMSecretsResource()
@@ -1785,6 +1786,7 @@ func (task *Task) PopulateSecrets(hostConfig *dockercontainer.HostConfig, contai
 		}
 
 		if !validValue {
+			seelog.Infof("Secret %s does not have valid value", secret.Name)
 			continue
 		}
 
@@ -1793,6 +1795,7 @@ func (task *Task) PopulateSecrets(hostConfig *dockercontainer.HostConfig, contai
 			continue
 		}
 		if secret.Target == apicontainer.SecretTargetLogDriver {
+			seelog.Infof("Found log driver secret: %s", secret.Name)
 			logDriverTokenName = secret.Name
 			logDriverTokenSecretValue = secretVal
 
