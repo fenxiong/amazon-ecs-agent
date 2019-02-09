@@ -153,6 +153,36 @@ type AppMeshConfig struct {
 	EgressIgnoredIPs []string `json:"egressIgnoredIPs,omitempty"`
 }
 
+// BranchENIConfig contains all the information needed to invoke the vpc-branch-eni plugin
+type BranchENIConfig struct {
+	// CNIVersion is the CNI spec version to use
+	CNIVersion string `json:"cniVersion,omitempty"`
+	// Name is the CNI network name
+	Name string `json:"name,omitempty"`
+	// Type is the CNI plugin name
+	Type string `json:"type,omitempty"`
+
+	// TrunkName is the local interface name of the trunk ENI
+	TrunkName string `json:"trunkName,omitempty"`
+	// TrunkMACAddress is the MAC address of the trunk ENI
+	TrunkMACAddress string `json:"trunkMACAddress,omitempty"`
+	// BranchVlanID is the VLAN ID of the branch ENI
+	BranchVlanID string `json:"branchVlanID,omitempty"`
+	// BranchMacAddress is the MAC address of the branch ENI
+	BranchMACAddress string `json:"branchMACAddress"`
+	// BranchIPAddress is the IP address of the branch ENI
+	BranchIPAddress string `json:"branchIPAddress"`
+	// BranchGatewayIPAddress is the IP address of the branch ENI's default gateway.
+	BranchGatewayIPAddress string `json:"branchGatewayIPAddress"`
+	// InterfaceType is the type of the interface to connect the branch ENI to
+	InterfaceType string `json:"interfaceType,omitempty"`
+
+	// BlockInstanceMetadata specifies if InstanceMetadata endpoint should be blocked
+	BlockInstanceMetadata bool `json:"block-instance-metadata"`
+	// SubnetGatewayIPV4Address specifies the IPv4 address of the subnet gateway for the ENI
+	SubnetGatewayIPV4Address string `json:"subnetgateway-ipv4-address"`
+}
+
 // Config contains all the information to set up the container namespace using
 // the plugins
 type Config struct {

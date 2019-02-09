@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/logger"
@@ -114,12 +115,27 @@ func (client *cniClient) setupNS(cfg *Config) (*current.Result, error) {
 	os.Setenv("ECS_CNI_LOGLEVEL", logger.GetLevel())
 	defer os.Unsetenv("ECS_CNI_LOGLEVEL")
 
+	seelog.Infof("Setting log level and log file path for vpc-branch-eni plugin")
+	os.Setenv("VPC_CNI_LOG_LEVEL", logger.GetLevel())
+	defer os.Unsetenv("VPC_CNI_LOG_LEVEL")
+
+	os.Setenv("VPC_CNI_LOG_FILE", "/log/vpc-branch-eni.log")
+	defer os.Unsetenv("VPC_CNI_LOG_FILE")
+
 	// Invoke eni plugin ADD command
-	result, err := client.add(runtimeConfig, cfg, client.createENINetworkConfig)
+	//result, err := client.add(runtimeConfig, cfg, client.createENINetworkConfig)
+	//if err != nil {
+	//	return nil, errors.Wrap(err, "cni setup: invoke eni plugin failed")
+	//}
+	//seelog.Debugf("[ECSCNI] ENI setup done: %s", result.String())
+
+	// Invoke branch-eni plugin ADD command
+	seelog.Infof("Invoking vpc-branch-eni plugin instead of ecs-eni plugin")
+	result, err := client.add(runtimeConfig, cfg, client.createBranchENINetworkConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "cni setup: invoke eni plugin failed")
+		return nil, errors.Wrap(err, "cni setup: invoke vpc-branch-eni plugin failed")
 	}
-	seelog.Debugf("[ECSCNI] ENI setup done: %s", result.String())
+	seelog.Debugf("[ECSCNI] ENI setup via vpc-branch-eni plugin done: %s", result.String())
 
 	// Invoke bridge plugin ADD command
 	result, err = client.add(runtimeConfig, cfg, client.createBridgeNetworkConfigWithIPAM)
@@ -191,20 +207,29 @@ func (client *cniClient) cleanupNS(cfg *Config) error {
 	}
 	seelog.Debugf("[ECSCNI] bridge cleanup done: %s", cfg.ContainerID)
 	// clean up eni network namespace
-	err = client.del(runtimeConfig, cfg, client.createENINetworkConfig)
+	//err = client.del(runtimeConfig, cfg, client.createENINetworkConfig)
+	//if err != nil {
+	//	return errors.Wrap(err, "cni cleanup: invoke eni plugin failed")
+	//}
+	//seelog.Debugf("[ECSCNI] container namespace cleanup done: %s", cfg.ContainerID)
+
+	// Invoke vpc-branch-eni DEL command
+	err = client.del(runtimeConfig, cfg, client.createBranchENINetworkConfig)
 	if err != nil {
-		return errors.Wrap(err, "cni cleanup: invoke eni plugin failed")
+		return errors.Wrap(err, "cni cleanup: invoke branch eni plugin failed")
 	}
-	if cfg.AppMeshCNIEnabled {
-		// clean up app mesh network namespace
-		seelog.Debug("[APPMESH] Starting clean up aws-appmesh namespace")
-		err = client.del(runtimeConfig, cfg, client.createAppMeshConfig)
-		if err != nil {
-			return errors.Wrap(err, "cni cleanup: invoke app mesh plugin failed")
-		}
-		seelog.Debug("[APPMESH] Clean up aws-appmesh namespace done")
-	}
-	seelog.Debugf("[ECSCNI] container namespace cleanup done: %s", cfg.ContainerID)
+	//if cfg.AppMeshCNIEnabled {
+	//	// clean up app mesh network namespace
+	//	seelog.Debug("[APPMESH] Starting clean up aws-appmesh namespace")
+	//	err = client.del(runtimeConfig, cfg, client.createAppMeshConfig)
+	//	if err != nil {
+	//		return errors.Wrap(err, "cni cleanup: invoke app mesh plugin failed")
+	//	}
+	//	seelog.Debug("[APPMESH] Clean up aws-appmesh namespace done")
+	//}
+	//seelog.Debugf("[ECSCNI] container namespace cleanup done: %s", cfg.ContainerID)
+	seelog.Debugf("[ECSCNI] container namespace cleanup via vpc-branch-eni plugin done: %s", cfg.ContainerID)
+
 	return nil
 }
 
@@ -347,6 +372,35 @@ func (client *cniClient) createAppMeshConfig(cfg *Config) (string, *libcni.Netwo
 		return "", nil, errors.Wrap(err, "createAppMeshNetworkConfig: construct the app mesh network configuration failed")
 	}
 	return defaultAppMeshIfName, networkConfig, nil
+}
+
+func (client *cniClient) createBranchENINetworkConfig(cfg *Config) (string, *libcni.NetworkConfig, error) {
+	// Translate the IP configuration to the format that the vpc-branch-eni plugin expects.
+	data := strings.Split(cfg.SubnetGatewayIPV4Address, "/")
+	if len(data) != 2 {
+		return "", nil, errors.Errorf("createBranchENINetworkConfig: parsing the SubnetGatewayIPV4Address failed")
+	}
+	branchGatewayIPAddress := data[0]
+	prefixLength := data[1]
+
+	branchENIConf := BranchENIConfig{
+		CNIVersion:             client.cniVersion,
+		Name:                   "vpc-branch-eni-network",
+		Type:                   "vpc-branch-eni",
+		TrunkName:              "eth1",
+		TrunkMACAddress:        "",
+		BranchVlanID:           "101",
+		BranchMACAddress:       "0a:f1:23:45:e3:f8",
+		BranchIPAddress:        "172.31.2.219/" + prefixLength,
+		BranchGatewayIPAddress: branchGatewayIPAddress,
+		InterfaceType:          "vlan",
+		BlockInstanceMetadata:  cfg.BlockInstanceMetdata,
+	}
+	networkConfig, err := client.constructNetworkConfig(branchENIConf, "vpc-branch-eni")
+	if err != nil {
+		return "", nil, errors.Wrap(err, "createBranchENINetworkConfig: construct the branch eni network configuration failed")
+	}
+	return defaultENIName, networkConfig, nil
 }
 
 // createIPAMNetworkConfig constructs the ipam configuration accepted by libcni
