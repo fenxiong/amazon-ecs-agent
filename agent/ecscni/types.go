@@ -41,6 +41,8 @@ const (
 	ECSBridgePluginName = "ecs-bridge"
 	// ECSENIPluginName is the binary of the eni plugin
 	ECSENIPluginName = "ecs-eni"
+	// ECSBranchENIPluginName is the binary of the branch eni plugin
+	ECSBranchENIPluginName = "vpc-branch-eni"
 	// TaskIAMRoleEndpoint is the endpoint of ecs-agent exposes credentials for
 	// task IAM role
 	TaskIAMRoleEndpoint = "169.254.170.2/32"

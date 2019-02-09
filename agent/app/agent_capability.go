@@ -33,6 +33,7 @@ const (
 	taskENIAttributeSuffix                      = "task-eni"
 	taskENIBlockInstanceMetadataAttributeSuffix = "task-eni-block-instance-metadata"
 	cniPluginVersionSuffix                      = "cni-plugin-version"
+	branchENICNIPluginVersionSuffix             = "branch-eni-cni-plugin-version"
 	capabilityTaskCPUMemLimit                   = "task-cpu-mem-limit"
 	capabilityDockerPluginInfix                 = "docker-plugin."
 	attributeSeparator                          = "."
@@ -227,6 +228,13 @@ func (agent *ecsAgent) appendTaskENICapabilities(capabilities []*ecs.Attribute) 
 			return capabilities
 		}
 		capabilities = append(capabilities, taskENIVersionAttribute)
+
+		branchENIVersionAttribute, err := agent.getBranchENIPluginVersionAttribute()
+		if err != nil {
+			return capabilities
+		}
+		capabilities = append(capabilities, branchENIVersionAttribute)
+
 		// We only care about AWSVPCBlockInstanceMetdata if Task ENI is enabled
 		if agent.cfg.AWSVPCBlockInstanceMetdata {
 			// If the Block Instance Metadata flag is set for AWS VPC networking mode, register a capability
@@ -256,6 +264,21 @@ func (agent *ecsAgent) getTaskENIPluginVersionAttribute() (*ecs.Attribute, error
 
 	return &ecs.Attribute{
 		Name:  aws.String(attributePrefix + cniPluginVersionSuffix),
+		Value: aws.String(version),
+	}, nil
+}
+
+func (agent *ecsAgent) getBranchENIPluginVersionAttribute() (*ecs.Attribute, error) {
+	version, err := agent.cniClient.Version(ecscni.ECSBranchENIPluginName)
+	if err != nil {
+		seelog.Warnf(
+			"Unable to determine the version of the branch eni plugin '%s': %v",
+			ecscni.ECSBranchENIPluginName, err)
+		return nil, err
+	}
+
+	return &ecs.Attribute{
+		Name:  aws.String(attributePrefix + branchENICNIPluginVersionSuffix),
 		Value: aws.String(version),
 	}, nil
 }

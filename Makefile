@@ -29,6 +29,7 @@ gobuild:
 .out-stamp:
 	mkdir -p ./out/test-artifacts ./out/cni-plugins
 	touch .out-stamp
+	cp branch-eni/vpc-branch-eni ./out/cni-plugins/
 
 # Basic go build
 static:
