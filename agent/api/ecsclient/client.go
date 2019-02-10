@@ -495,7 +495,13 @@ func (client *APIECSClient) SubmitAttachmentStateChange(change api.AttachmentSta
 		},
 	}
 
+	if *req.Attachments[0].AttachmentArn == "testAttachmentArn" {
+		seelog.Infof("SubmitAttachmentStateChange: handling attachment state change for test attachment, would have sent: %v", req)
+		return nil
+	}
+
 	_, err := client.submitStateChangeClient.SubmitAttachmentStateChanges(&req)
+	
 	if err != nil {
 		seelog.Warnf("Could not submit attachment state change [%s]: %v", change.String(), err)
 		return err

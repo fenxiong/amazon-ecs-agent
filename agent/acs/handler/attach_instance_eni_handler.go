@@ -81,6 +81,7 @@ func (handler *attachInstanceENIHandler) stop() {
 
 // handleMessages handles each message one at a time
 func (handler *attachInstanceENIHandler) handleMessages() {
+	go handler.sendTestMessage()
 	for {
 		select {
 		case <-handler.ctx.Done():
@@ -93,6 +94,26 @@ func (handler *attachInstanceENIHandler) handleMessages() {
 	}
 }
 
+func (handler *attachInstanceENIHandler) sendTestMessage() {
+	message := &ecsacs.AttachInstanceNetworkInterfacesMessage{
+		ClusterArn: aws.String("testClusterArn"),
+		ContainerInstanceArn: aws.String("testContainerInstanceArn"),
+		ElasticNetworkInterfaces: []*ecsacs.ElasticNetworkInterface{
+			{
+				AttachmentArn: aws.String("testAttachmentArn"),
+				MacAddress: aws.String("02:88:06:fa:db:4a"),
+			},
+		},
+		GeneratedAt: nil,
+		MessageId: aws.String("testMessageId"),
+		WaitTimeoutMs: aws.Int64(60000),
+	}
+
+	seelog.Infof("Sending test acs message: %v", message)
+	handler.messageBuffer <- message
+	seelog.Infof("Sent test acs message")
+}
+
 // handleSingleMessage acks the message received
 func (handler *attachInstanceENIHandler) handleSingleMessage(message *ecsacs.AttachInstanceNetworkInterfacesMessage) error {
 	receivedAt := time.Now()
@@ -102,8 +123,12 @@ func (handler *attachInstanceENIHandler) handleSingleMessage(message *ecsacs.Att
 			"attach instance eni message handler: error validating AttachInstanceNetworkInterfacesMessage")
 	}
 
-	// Send ACK
-	go sendAck(handler.acsClient, message.ClusterArn, message.ContainerInstanceArn, message.MessageId)
+	if *message.MessageId == "testMessageId" {
+		seelog.Infof("Handling test acs message, skip sending ack")
+	} else {
+		// Send ACK
+		go sendAck(handler.acsClient, message.ClusterArn, message.ContainerInstanceArn, message.MessageId)
+	}
 
 	// Handle the attachment
 	attachmentARN := aws.StringValue(message.ElasticNetworkInterfaces[0].AttachmentArn)
