@@ -48,6 +48,7 @@ const initPID = 1
 var awsVPCCNIPlugins = []string{ecscni.ECSENIPluginName,
 	ecscni.ECSBridgePluginName,
 	ecscni.ECSIPAMPluginName,
+	ecscni.ECSBranchENIPluginName,
 }
 
 // startWindowsService is not supported on Linux
@@ -148,7 +149,9 @@ func isInstanceLaunchedInVPC(err error) bool {
 // a. ecs-eni
 // b. ecs-bridge
 // c. ecs-ipam
+// d. vpc-branch-eni
 func (agent *ecsAgent) verifyCNIPluginsCapabilities() error {
+	seelog.Infof("Verifying cni plugin capabilities for cni plugins: %v", awsVPCCNIPlugins)
 	// Check if we can get capabilities from each plugin
 	for _, plugin := range awsVPCCNIPlugins {
 		capabilities, err := agent.cniClient.Capabilities(plugin)
