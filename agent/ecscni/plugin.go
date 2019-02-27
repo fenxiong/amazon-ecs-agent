@@ -340,7 +340,7 @@ func (client *cniClient) createBranchENINetworkConfig(cfg *Config) (string, *lib
 	if len(data) != 2 {
 		return "", nil, errors.Errorf("createBranchENINetworkConfig: parsing the SubnetGatewayIPV4Address failed")
 	}
-	branchGatewayIPAddress := data[0]
+	// branchGatewayIPAddress := data[0]
 	prefixLength := data[1]
 
 	branchENIConf := BranchENIConfig{
@@ -352,7 +352,7 @@ func (client *cniClient) createBranchENINetworkConfig(cfg *Config) (string, *lib
 		BranchVlanID:           "101",
 		BranchMACAddress:       "02:9b:f6:b0:68:48",
 		BranchIPAddress:        "172.31.18.203/" + prefixLength,
-		BranchGatewayIPAddress: branchGatewayIPAddress,
+		BranchGatewayIPAddress: "172.31.16.2",
 		InterfaceType:          "vlan",
 		BlockInstanceMetadata:  cfg.BlockInstanceMetdata,
 	}
