@@ -21,8 +21,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
+	apieni "github.com/aws/amazon-ecs-agent/agent/api/eni"
 	"github.com/aws/amazon-ecs-agent/agent/logger"
 	"github.com/cihub/seelog"
 	"github.com/containernetworking/cni/libcni"
@@ -114,15 +116,23 @@ func (client *cniClient) setupNS(cfg *Config) (*current.Result, error) {
 	os.Setenv("ECS_CNI_LOGLEVEL", logger.GetLevel())
 	defer os.Unsetenv("ECS_CNI_LOGLEVEL")
 
-	// Invoke eni plugin ADD command
-	result, err := client.add(runtimeConfig, cfg, client.createENINetworkConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "cni setup: invoke eni plugin failed")
+	// Invoke eni plugin ADD command based on the type of eni plugin
+	if cfg.ENIType == apieni.BranchENIType {
+		result, err := client.add(runtimeConfig, cfg, client.createBranchENINetworkConfig)
+		if err != nil {
+			return nil, errors.Wrap(err, "cni setup: invoke branch eni plugin failed")
+		}
+		seelog.Debugf("[ECSCNI] Branch ENI setup done: %s", result.String())
+	} else {
+		result, err := client.add(runtimeConfig, cfg, client.createENINetworkConfig)
+		if err != nil {
+			return nil, errors.Wrap(err, "cni setup: invoke eni plugin failed")
+		}
+		seelog.Debugf("[ECSCNI] ENI setup done: %s", result.String())
 	}
-	seelog.Debugf("[ECSCNI] ENI setup done: %s", result.String())
 
 	// Invoke bridge plugin ADD command
-	result, err = client.add(runtimeConfig, cfg, client.createBridgeNetworkConfigWithIPAM)
+	result, err := client.add(runtimeConfig, cfg, client.createBridgeNetworkConfigWithIPAM)
 	if err != nil {
 		return nil, errors.Wrap(err, "cni setup: invoke bridge plugin failed")
 	}
@@ -190,11 +200,20 @@ func (client *cniClient) cleanupNS(cfg *Config) error {
 		return errors.Wrap(err, "cni cleanup: invoke bridge plugin failed")
 	}
 	seelog.Debugf("[ECSCNI] bridge cleanup done: %s", cfg.ContainerID)
+
 	// clean up eni network namespace
-	err = client.del(runtimeConfig, cfg, client.createENINetworkConfig)
-	if err != nil {
-		return errors.Wrap(err, "cni cleanup: invoke eni plugin failed")
+	if cfg.ENIType == apieni.BranchENIType {
+		err = client.del(runtimeConfig, cfg, client.createBranchENINetworkConfig)
+		if err != nil {
+			return errors.Wrap(err, "cni cleanup: invoke eni plugin failed")
+		}
+	} else {
+		err = client.del(runtimeConfig, cfg, client.createENINetworkConfig)
+		if err != nil {
+			return errors.Wrap(err, "cni cleanup: invoke eni plugin failed")
+		}
 	}
+
 	if cfg.AppMeshCNIEnabled {
 		// clean up app mesh network namespace
 		seelog.Debug("[APPMESH] Starting clean up aws-appmesh namespace")
@@ -347,6 +366,30 @@ func (client *cniClient) createAppMeshConfig(cfg *Config) (string, *libcni.Netwo
 		return "", nil, errors.Wrap(err, "createAppMeshNetworkConfig: construct the app mesh network configuration failed")
 	}
 	return defaultAppMeshIfName, networkConfig, nil
+}
+
+func (client *cniClient) createBranchENINetworkConfig(cfg *Config) (string, *libcni.NetworkConfig, error) {
+	// cfg.ENIIPV4Address does not have a prefix length while BranchIPAddress expects a prefix length
+	// cfg.SubnetGatewayIPV4Address has prefix length while BranchGatewayIPAddress does not expect the prefix length
+	stringSlice := strings.Split(cfg.SubnetGatewayIPV4Address, "/")
+	ENIIPV4Address := cfg.ENIIPV4Address + "/" + stringSlice[1]
+	BranchGatewayIPAddress := stringSlice[0]
+
+	eniConf := BranchENIConfig{
+		TrunkMACAddress:          cfg.TrunkMACAddress,
+		Type:                     ECSBranchENIPluginName,
+		CNIVersion:               client.cniVersion,
+		BranchVlanID:             cfg.BranchVlanID,
+		BranchIPAddress:          ENIIPV4Address,
+		BranchMACAddress:         cfg.ENIMACAddress,
+		BlockInstanceMetdata:     cfg.BlockInstanceMetdata,
+		BranchGatewayIPAddress:   BranchGatewayIPAddress,
+	}
+	networkConfig, err := client.constructNetworkConfig(eniConf, ECSBranchENIPluginName)
+	if err != nil {
+		return "", nil, errors.Wrap(err, "createENINetworkConfig: construct the eni network configuration failed")
+	}
+	return defaultENIName, networkConfig, nil
 }
 
 // createIPAMNetworkConfig constructs the ipam configuration accepted by libcni

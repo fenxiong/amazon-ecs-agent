@@ -26,6 +26,8 @@ import (
 type ENI struct {
 	// ID is the id of eni
 	ID string `json:"ec2Id"`
+	// ENIType is the type of ENI, valid value: "standard", "vlan-tagged"
+	ENIType string `json:",omitempty"`
 	// IPV4Addresses is the ipv4 address associated with the eni
 	IPV4Addresses []*ENIIPV4Address
 	// IPV6Addresses is the ipv6 address associated with the eni
@@ -38,13 +40,30 @@ type ENI struct {
 	// DomainNameSearchList specifies the search list for the domain
 	// name lookup, for the eni
 	DomainNameSearchList []string `json:",omitempty"`
-
+	// InterfaceVlanProperties contains information for an interface
+	// that is supposed to be used as a VLAN device
+	InterfaceVlanProperties *InterfaceVlanProperties `json:",omitempty"`
 	// PrivateDNSName is the dns name assigned by the vpc to this eni
 	PrivateDNSName string `json:",omitempty"`
 	// SubnetGatewayIPV4Address is the address to the subnet gateway for
 	// the eni
 	SubnetGatewayIPV4Address string `json:",omitempty"`
 }
+
+// InterfaceVlanProperties contains information for an interface that
+// is supposed to be used as a VLAN device
+type InterfaceVlanProperties struct {
+	VlanID                   string
+	TrunkInterfaceMacAddress string
+}
+
+const (
+	// RegularENIType represents the standard ENI type.
+	RegularENIType = "standard"
+
+	// BranchENIType represents the ENI with trunking enabled.
+	BranchENIType  = "vlan-tagged"
+)
 
 // GetIPV4Addresses returns a list of ipv4 addresses allocated to the ENI
 func (eni *ENI) GetIPV4Addresses() []string {
@@ -87,10 +106,22 @@ func (eni *ENI) String() string {
 	for _, addr := range eni.IPV6Addresses {
 		ipv6Addresses = append(ipv6Addresses, addr.Address)
 	}
+
+	eniString := ""
+
+	if len(eni.ENIType) == 0 {
+		eniString += fmt.Sprintf(" ,ENI type: [%s]", eni.ENIType)
+	}
+
+	if eni.InterfaceVlanProperties != nil {
+		eniString += fmt.Sprintf(" ,VLan ID: [%s], TrunkInterfaceMacAddress: [%s]",
+			eni.InterfaceVlanProperties.VlanID, eni.InterfaceVlanProperties.TrunkInterfaceMacAddress)
+	}
 	return fmt.Sprintf(
-		"eni id:%s, mac: %s, hostname: %s, ipv4addresses: [%s], ipv6addresses: [%s], dns: [%s], dns search: [%s], gateway ipv4: [%s]",
-		eni.ID, eni.MacAddress, eni.GetHostname(), strings.Join(ipv4Addresses, ","), strings.Join(ipv6Addresses, ","),
-		strings.Join(eni.DomainNameServers, ","), strings.Join(eni.DomainNameSearchList, ","), eni.SubnetGatewayIPV4Address)
+		"eni id:%s, mac: %s, hostname: %s, ipv4addresses: [%s], ipv6addresses: [%s], dns: [%s], dns search: [%s],"+
+			" gateway ipv4: [%s][%s]", eni.ID, eni.MacAddress, eni.GetHostname(), strings.Join(ipv4Addresses, ","),
+		strings.Join(ipv6Addresses, ","), strings.Join(eni.DomainNameServers, ","),
+		strings.Join(eni.DomainNameSearchList, ","), eni.SubnetGatewayIPV4Address, eniString)
 }
 
 // ENIIPV4Address is the ipv4 information of the eni
@@ -132,6 +163,13 @@ func ENIFromACS(acsenis []*ecsacs.ElasticNetworkInterface) (*ENI, error) {
 		})
 	}
 
+	var interfaceVlanProperties InterfaceVlanProperties
+
+	if aws.StringValue(acsenis[0].InterfaceType) == BranchENIType {
+		interfaceVlanProperties.TrunkInterfaceMacAddress = aws.StringValue(acsenis[0].InterfaceVlanProperties.TrunkInterfaceMacAddress)
+		interfaceVlanProperties.VlanID = aws.StringValue(acsenis[0].InterfaceVlanProperties.VlanId)
+	}
+
 	eni := &ENI{
 		ID:                       aws.StringValue(acsenis[0].Ec2Id),
 		IPV4Addresses:            ipv4,
@@ -139,6 +177,8 @@ func ENIFromACS(acsenis []*ecsacs.ElasticNetworkInterface) (*ENI, error) {
 		MacAddress:               aws.StringValue(acsenis[0].MacAddress),
 		PrivateDNSName:           aws.StringValue(acsenis[0].PrivateDnsName),
 		SubnetGatewayIPV4Address: aws.StringValue(acsenis[0].SubnetGatewayIpv4Address),
+		ENIType:                  aws.StringValue(acsenis[0].InterfaceType),
+		InterfaceVlanProperties:  &interfaceVlanProperties,
 	}
 	for _, nameserverIP := range acsenis[0].DomainNameServers {
 		eni.DomainNameServers = append(eni.DomainNameServers, aws.StringValue(nameserverIP))

@@ -422,6 +422,10 @@ type ElasticNetworkInterface struct {
 
 	Ec2Id *string `locationName:"ec2Id" type:"string"`
 
+	InterfaceType *string `locationName:"interfaceType" type:"string" enum:"ElasticNetworkInterfaceType"`
+
+	InterfaceVlanProperties *NetworkInterfaceVlanProperties `locationName:"interfaceVlanProperties" type:"structure"`
+
 	Ipv4Addresses []*IPv4AddressAssignment `locationName:"ipv4Addresses" type:"list"`
 
 	Ipv6Addresses []*IPv6AddressAssignment `locationName:"ipv6Addresses" type:"list"`
@@ -758,6 +762,24 @@ func (s NackRequest) String() string {
 
 // GoString returns the string representation
 func (s NackRequest) GoString() string {
+	return s.String()
+}
+
+type NetworkInterfaceVlanProperties struct {
+	_ struct{} `type:"structure"`
+
+	TrunkInterfaceMacAddress *string `locationName:"trunkInterfaceMacAddress" type:"string"`
+
+	VlanId *string `locationName:"vlanId" type:"string"`
+}
+
+// String returns the string representation
+func (s NetworkInterfaceVlanProperties) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s NetworkInterfaceVlanProperties) GoString() string {
 	return s.String()
 }
 

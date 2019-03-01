@@ -24,6 +24,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
+	apieni "github.com/aws/amazon-ecs-agent/agent/api/eni"
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
@@ -1064,6 +1065,13 @@ func (engine *DockerTaskEngine) buildCNIConfigFromTaskContainer(task *apitask.Ta
 	cfg.ContainerPID = strconv.Itoa(containerInspectOutput.State.Pid)
 	cfg.ContainerID = containerInspectOutput.ID
 	cfg.BlockInstanceMetdata = engine.cfg.AWSVPCBlockInstanceMetdata
+
+	// Populate Trunk ENI fields
+	if task.ENI.ENIType == apieni.BranchENIType {
+		cfg.ENIType = apieni.BranchENIType
+		cfg.TrunkMACAddress = task.ENI.InterfaceVlanProperties.TrunkInterfaceMacAddress
+		cfg.BranchVlanID = task.ENI.InterfaceVlanProperties.VlanID
+	}
 
 	return cfg, nil
 }
