@@ -95,6 +95,41 @@ func TestRunManyTasks(t *testing.T) {
 	}
 }
 
+// TestRunOneTask runs one task and expects it to run.
+func TestRunOneTask(t *testing.T) {
+	agent := RunAgent(t, nil)
+	defer agent.Cleanup()
+
+	numToRun := 1
+	tasks := []*TestTask{}
+	attemptsTaken := 0
+
+	td, err := GetTaskDefinition("simple-exit")
+	require.NoError(t, err, "Register task definition failed")
+	for numRun := 0; len(tasks) < numToRun; attemptsTaken++ {
+		startNum := 10
+		if numToRun-len(tasks) < 10 {
+			startNum = numToRun - len(tasks)
+		}
+
+		startedTasks, err := agent.StartMultipleTasks(t, td, startNum)
+		if err != nil {
+			continue
+		}
+		tasks = append(tasks, startedTasks...)
+		numRun += 10
+	}
+
+	t.Logf("Ran %v containers; took %v tries\n", numToRun, attemptsTaken)
+	for _, task := range tasks {
+		err := task.WaitStopped(10 * time.Minute)
+		assert.NoError(t, err)
+		code, ok := task.ContainerExitcode("exit")
+		assert.True(t, ok, "Get exit code failed")
+		assert.Equal(t, 42, code, "Wrong exit code")
+	}
+}
+
 // TestOOMContainer verifies that an OOM container returns an error
 func TestOOMContainer(t *testing.T) {
 	// oom container task requires 500MB of memory; requires a bit more to be stable

@@ -211,6 +211,12 @@ test-in-docker:
 run-functional-tests: testnnp test-registry ecr-execution-role-image telemetry-test-image
 	. ./scripts/shared_env && go test -tags functional -timeout=60m -v ./agent/functional_tests/...
 
+run-functional-test-single: testnnp test-registry ecr-execution-role-image telemetry-test-image
+	. ./scripts/shared_env && go test -tags functional -run $(TEST_NAME) -timeout=32m -v ./agent/functional_tests/...
+
+run-functional-test-single-multiples: testnnp test-registry ecr-execution-role-image telemetry-test-image
+	. ./scripts/shared_env && GOCACHE=off go test -tags functional -run $(TEST_NAME) -count $(TEST_COUNT) -timeout=500m -v ./agent/functional_tests/...
+
 .PHONY: build-image-for-ecr ecr-execution-role-image-for-upload upload-images replicate-images
 
 build-image-for-ecr: netkitten volumes-test squid awscli image-cleanup-test-images fluentd taskmetadata-validator \
@@ -286,6 +292,9 @@ else
 run-integ-tests: test-registry gremlin container-health-check-image run-sudo-tests
 	. ./scripts/shared_env && ECS_LOGLEVEL=debug go test -race -tags integration -timeout=25m -v ./agent/engine/... ./agent/stats/... ./agent/app/...
 endif
+
+run-integ-test-single-multiples: test-registry gremlin container-health-check-image
+	. ./scripts/shared_env && go test -race -tags integration -run $(TEST_NAME) -count $(TEST_COUNT) -timeout=200m -v ./agent/engine/... ./agent/stats/... ./agent/app/...
 
 ifeq (${BUILD_PLATFORM},aarch64)
 run-sudo-tests::
