@@ -151,6 +151,7 @@ func (payloadHandler *payloadRequestHandler) handleSingleMessage(payload *ecsacs
 		return fmt.Errorf("received a payload with no message id")
 	}
 	seelog.Debugf("Received payload message, message id: %s", aws.StringValue(payload.MessageId))
+	seelog.Infof("Payload Message: %v", *payload)
 	credentialsAcks, allTasksHandled := payloadHandler.addPayloadTasks(payload)
 	// save the state of tasks we know about after passing them to the task engine
 	err := payloadHandler.saver.Save()
