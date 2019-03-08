@@ -22,4 +22,6 @@ RUN mkdir -p /go/src/github.com/aws/
 
 WORKDIR /go/src/github.com/aws/amazon-vpc-cni-plugins
 
-CMD ["sh", "-c", "make GOARCH=${GOARCH} aws-appmesh vpc-branch-eni"]
+# CMD ["sh", "-c", "make GOARCH=${GOARCH} aws-appmesh vpc-branch-eni"]
+
+CMD ["make", "aws-appmesh", "vpc-branch-eni"]
