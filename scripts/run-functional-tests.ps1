@@ -22,10 +22,10 @@ Invoke-Expression "${PSScriptRoot}\..\misc\container-metadata-file-validator-win
 $cwd = (pwd).Path
 try {
   cd "${PSScriptRoot}"
-  go test -tags functional -timeout=40m -v ../agent/functional_tests/tests
+  go test -tags functional -run TestV3TaskEndpointDefaultNetworkMode -timeout=40m -v ../agent/functional_tests/tests
   $handwrittenExitCode = $LastExitCode
   echo "Handwritten functional tests exited with ${handwrittenExitCode}"
-  go test -tags functional -timeout=30m -v ../agent/functional_tests/tests/generated/simpletests_windows
+  # go test -tags functional -timeout=30m -v ../agent/functional_tests/tests/generated/simpletests_windows
   $simpletestExitCode = $LastExitCode
   echo "Simple functional tests exited with ${simpletestExitCode}"
 } finally {
