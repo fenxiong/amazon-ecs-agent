@@ -17,7 +17,6 @@ package util
 
 import (
 	"context"
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -38,6 +37,7 @@ import (
 	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	docker "github.com/docker/docker/client"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -288,4 +288,48 @@ func (agent *TestAgent) getBindMounts() []string {
 
 func (agent *TestAgent) Cleanup() {
 	agent.platformIndependentCleanup()
+}
+
+// GetNetworkInterfaceCount returns the number of network interfaces attached to the instance
+func GetNetworkInterfaceCount() (int, error) {
+	macs, err := ec2.NewEC2MetadataClient(nil).AllENIMacs()
+	if err != nil {
+		return 0, err
+	}
+
+	return len(strings.Split(macs, "\n")), nil
+}
+
+// WaitNetworkInterfaceCount waits until there are certain number of ENIs attached to the instance
+func WaitNetworkInterfaceCount(desiredCount int, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	errChan := make(chan error, 1)
+	networkInterfaceCount := 0
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			count, err := GetNetworkInterfaceCount()
+			if err != nil {
+				errChan <- err
+				return
+			}
+			networkInterfaceCount = count
+
+			if count == desiredCount {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for instance to have %d network interfaces attached; number of interfaces attached: %d",
+			desiredCount, networkInterfaceCount)
+	}
 }

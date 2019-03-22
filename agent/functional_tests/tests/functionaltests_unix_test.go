@@ -1454,3 +1454,53 @@ func TestServerEndpointValidator(t *testing.T) {
 	assert.True(t, ok, "Get exit code failed")
 	assert.Equal(t, 42, code, "Wrong exit code")
 }
+
+// TestTrunkENIAttachDetachWorkflow tests that when ENI trunking is enabled, the Trunk ENI is attached
+// when container instance reaches ACTIVE status, and it's detached when the container instance is deregistered
+func TestTrunkENIAttachDetachWorkflow(t *testing.T) {
+	RequireInstanceTypes(t, []string{"c5", "m5", "r5", "z1d", "a1"})
+
+	// Enable ENI Trunking account setting
+	putAccountSettingInput := ecsapi.PutAccountSettingInput{
+		Name:  aws.String("awsvpcTrunking"),
+		Value: aws.String("enabled"),
+	}
+	_, err := ECS.PutAccountSetting(&putAccountSettingInput)
+	assert.NoError(t, err)
+
+	agentOptions := &AgentOptions{
+		EnableTaskENI: true,
+	}
+	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+
+	agent := RunAgent(t, agentOptions)
+
+	// TODO: change to actual version
+	agent.RequireVersion(">=1.25.0")
+
+	existingInterfaceCount, err := GetNetworkInterfaceCount()
+	require.NoError(t, err)
+
+	// Wait for container instance to become active
+	agent.WaitContainerInstanceActive(1 * time.Minute)
+
+	// Expect one more interface to be attached (i.e. the Trunk)
+	interfaceCount, err := GetNetworkInterfaceCount()
+	require.NoError(t, err)
+	assert.Equal(t, existingInterfaceCount + 1, interfaceCount)
+
+	// Stop the Agent and deregister the container instance
+	agent.StopAgent()
+	ECS.DeregisterContainerInstance(&ecsapi.DeregisterContainerInstanceInput{
+		Cluster:           &agent.Cluster,
+		ContainerInstance: &agent.ContainerInstanceArn,
+		Force:             aws.Bool(true),
+	})
+
+	// Wait for the Trunk ENI to be detached
+	err = WaitNetworkInterfaceCount(existingInterfaceCount, 1 * time.Minute)
+	assert.NoError(t, err)
+
+	// Clean up
+	agent.TestCleanup()
+}
