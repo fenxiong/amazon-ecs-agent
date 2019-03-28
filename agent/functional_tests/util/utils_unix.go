@@ -136,6 +136,50 @@ func RunAgent(t *testing.T, options *AgentOptions) *TestAgent {
 	return agent
 }
 
+// PrepareAgent does all the things in RunAgent except for starting the Agent
+func PrepareAgent(t *testing.T, options *AgentOptions) *TestAgent {
+	ctx := context.TODO()
+	agent := &TestAgent{t: t}
+	agentImage := "amazon/amazon-ecs-agent:make"
+	if envImage := os.Getenv("ECS_AGENT_IMAGE"); envImage != "" {
+		agentImage = envImage
+	}
+	agent.Image = agentImage
+
+	dockerClient, err := docker.NewClientWithOpts(docker.WithVersion(sdkclientfactory.GetDefaultVersion().String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent.DockerClient = dockerClient
+
+	_, _, err = dockerClient.ImageInspectWithRaw(ctx, agentImage)
+	if err != nil {
+		_, err = dockerClient.ImagePull(ctx, agentImage, types.ImagePullOptions{})
+		if err != nil {
+			t.Fatal("Could not launch agent", err)
+		}
+	}
+
+	tmpdirOverride := os.Getenv("ECS_FTEST_TMP")
+
+	agentTempdir, err := ioutil.TempDir(tmpdirOverride, "ecs_integ_testdata")
+	if err != nil {
+		t.Fatal("Could not create temp dir for test")
+	}
+	logdir := filepath.Join(agentTempdir, "log")
+	datadir := filepath.Join(agentTempdir, "data")
+	os.Mkdir(logdir, 0755)
+	os.Mkdir(datadir, 0755)
+	agent.TestDir = agentTempdir
+	agent.Options = options
+	if options == nil {
+		agent.Options = &AgentOptions{}
+	}
+	t.Logf("Created directory %s to store test data in", agentTempdir)
+
+	return agent
+}
+
 func (agent *TestAgent) StopAgent() error {
 	ctx := context.TODO()
 	containerStopTimeout := 10 * time.Second
@@ -319,7 +363,7 @@ func WaitNetworkInterfaceCount(desiredCount int, timeout time.Duration) error {
 			if count == desiredCount {
 				break
 			}
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 		errChan <- nil
 	}()

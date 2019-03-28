@@ -1504,3 +1504,71 @@ func TestTrunkENIAttachDetachWorkflow(t *testing.T) {
 	// Clean up
 	agent.TestCleanup()
 }
+
+func TestTrunkingInstanceStartupLatency(t *testing.T) {
+	// Enable ENI Trunking account setting
+	//putAccountSettingInput := ecsapi.PutAccountSettingInput{
+	//	Name:  aws.String("awsvpcTrunking"),
+	//	Value: aws.String("enabled"),
+	//}
+	//_, err := ECS.PutAccountSetting(&putAccountSettingInput)
+	//assert.NoError(t, err)
+
+	agentOptions := &AgentOptions{
+		EnableTaskENI: true,
+	}
+	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+
+	testCount, err := strconv.Atoi(os.Getenv("TEST_COUNT"))
+	require.NoError(t, err)
+	require.NotEmpty(t, testCount)
+	// testCount := 1
+	t.Logf("Running the test for %d times", testCount)
+
+	latencies :=[]time.Duration{}
+	var totalLatency time.Duration
+	errCount := 0
+	for i := 0; i < testCount; i++ {
+		latency, err := testStartupOnce(t, agentOptions, 2)
+		if err != nil {
+			errCount += 1
+		} else {
+			latencies = append(latencies, latency)
+			totalLatency += latency
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+
+	t.Logf("latencies: %v", latencies)
+	t.Logf("errCount: %d", errCount)
+}
+
+func testStartupOnce(t *testing.T, agentOptions *AgentOptions, interfaceCount int) (time.Duration, error) {
+	agent := PrepareAgent(t, agentOptions)
+
+	startTime := time.Now()
+	agent.StartAgent()
+	t.Logf("Container instance arn: %s", agent.ContainerInstanceArn)
+
+	// Wait for container instance to become active
+	agent.WaitContainerInstanceActive(1 * time.Minute)
+	latency := time.Since(startTime)
+
+	// Stop the Agent and deregister the container instance
+	agent.StopAgent()
+	ECS.DeregisterContainerInstance(&ecsapi.DeregisterContainerInstanceInput{
+		Cluster:           &agent.Cluster,
+		ContainerInstance: &agent.ContainerInstanceArn,
+		Force:             aws.Bool(true),
+	})
+
+	// Wait for the Trunk ENI to be detached
+	//err := WaitNetworkInterfaceCount(interfaceCount, 1 * time.Minute)
+	//require.NoError(t, err)
+	t.Logf("interface count: %d", interfaceCount)
+
+	agent.TestCleanup()
+
+	return latency, nil
+}

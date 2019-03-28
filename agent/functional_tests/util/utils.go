@@ -892,7 +892,7 @@ func (agent *TestAgent) WaitContainerInstanceActive(timeout time.Duration) error
 				errChan <- errors.Errorf("Container instance ends at status %s; will never reach ACTIVE", status)
 				return
 			}
-			time.Sleep(5 * time.Second)
+			time.Sleep(1 * time.Second)
 		}
 		errChan <- nil
 	}()
