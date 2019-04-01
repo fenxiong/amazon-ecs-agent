@@ -146,6 +146,21 @@ func ENIFromACS(acsenis []*ecsacs.ElasticNetworkInterface) (*ENI, error) {
 		return nil, err
 	}
 
+	// hardcode branch eni information in task payload
+	acsenis[0].InterfaceAssociationProtocol = aws.String("vlan")
+	acsenis[0].InterfaceVlanProperties = &ecsacs.NetworkInterfaceVlanProperties{
+		TrunkInterfaceMacAddress: aws.String("02:88:06:fa:db:4a"),
+		VlanId: aws.String("101"),
+	}
+	acsenis[0].MacAddress = aws.String("02:9b:f6:b0:68:48") // branch mac address
+	acsenis[0].Ipv4Addresses = []*ecsacs.IPv4AddressAssignment{
+		{
+			Primary: aws.Bool(true),
+			PrivateAddress: aws.String("172.31.18.203"), // $(branch_ip)
+		},
+	}// {branch_private_ip}
+	acsenis[0].SubnetGatewayIpv4Address = aws.String("172.31.16.1/20") // subnet ip with cidr block
+
 	var ipv4 []*ENIIPV4Address
 	var ipv6 []*ENIIPV6Address
 
