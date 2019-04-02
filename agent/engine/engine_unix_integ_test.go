@@ -32,6 +32,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/api"
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
+	apieni "github.com/aws/amazon-ecs-agent/agent/api/eni"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/config"
@@ -146,6 +147,65 @@ func createNamespaceSharingTask(arn, pidMode, ipcMode, testImage string, theComm
 	testTask.Containers[1].BuildContainerDependency(testTask.Containers[0].Name, apicontainerstatus.ContainerRunning, apicontainerstatus.ContainerCreated)
 	testTask.Containers[2].BuildContainerDependency(testTask.Containers[0].Name, apicontainerstatus.ContainerRunning, apicontainerstatus.ContainerCreated)
 	return testTask
+}
+
+func createTrunkingTask(arn, testImage string, command []string) *apitask.Task {
+	testTask := &apitask.Task{
+		Arn:                 arn,
+		Family:              "family",
+		Version:             "1",
+		DesiredStatusUnsafe: apitaskstatus.TaskRunning,
+		Containers: []*apicontainer.Container{
+			&apicontainer.Container{
+				Name:                      "container0",
+				Image:                     testImage,
+				Command:                   command,
+				DesiredStatusUnsafe:       apicontainerstatus.ContainerRunning,
+				CPU:                       100,
+				Memory:                    80,
+				TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
+			},
+		},
+		ENI: &apieni.ENI{
+			ID: "eni-0596ad6e70555d00a",
+			IPV4Addresses: []*apieni.ENIIPV4Address{
+				{
+					Primary: true,
+					Address: "172.31.18.203", // $(branch_ip)
+				},
+			},
+			MacAddress:                   "02:9b:f6:b0:68:48",
+			PrivateDNSName:               "ip-172-31-18-203.us-west-2.compute.internal",
+			SubnetGatewayIPV4Address:     "172.31.16.1/20",
+			InterfaceAssociationProtocol: "vlan",
+			InterfaceVlanProperties: &apieni.InterfaceVlanProperties{
+				TrunkInterfaceMacAddress: "02:88:06:fa:db:4a",
+				VlanID:                   "101",
+			},
+		},
+	}
+
+	pauseContainer := createTestPauseContainer()
+
+	for _, container := range testTask.Containers {
+		container.BuildContainerDependency(pauseContainer.Name, apicontainerstatus.ContainerResourcesProvisioned, apicontainerstatus.ContainerPulled)
+		pauseContainer.BuildContainerDependency(container.Name, apicontainerstatus.ContainerStopped, apicontainerstatus.ContainerStopped)
+	}
+
+	testTask.Containers = append(testTask.Containers, pauseContainer)
+
+	return testTask
+}
+
+func createTestPauseContainer() *apicontainer.Container {
+	pauseContainer := apicontainer.NewContainerWithSteadyState(apicontainerstatus.ContainerResourcesProvisioned)
+	pauseContainer.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
+	pauseContainer.Name = "~internal~ecs~pause"
+	pauseContainer.Image = "amazon/amazon-ecs-pause:0.1.0"
+	pauseContainer.Essential = true
+	pauseContainer.Type = apicontainer.ContainerCNIPause
+
+	return pauseContainer
 }
 
 func createVolumeTask(scope, arn, volume string, autoprovision bool) (*apitask.Task, string, error) {
@@ -542,6 +602,30 @@ func TestHostIPCNamespaceSharingInSingleTask(t *testing.T) {
 	assert.Equal(t, testIPCNamespaceResourceFound, *(cont1.GetKnownExitCode()), "container1 could not see IPC Semaphore")
 	cont2, _ := testTask.ContainerByName("container2")
 	assert.Equal(t, testIPCNamespaceResourceFound, *(cont2.GetKnownExitCode()), "container2 could not see IPC Semaphore")
+}
+
+func TestENITrunking(t *testing.T) {
+	taskEngine, done, _ := setupWithDefaultConfig(t)
+	defer done()
+
+	command := []string{"sh", "-c", "sleep 1"}
+	testTask := createTrunkingTask("TrunkingTask", "amazonlinux:2", command)
+	go taskEngine.AddTask(testTask)
+
+	testEvents := InitEventCollection(taskEngine)
+
+	err := VerifyTaskStatus(apitaskstatus.TaskRunning, testTask.Arn, testEvents, t)
+	assert.NoError(t, err, "Not verified task running")
+
+	// Wait for container0 to go down
+	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":container0", testEvents, t)
+	assert.NoError(t, err)
+
+	// Manually stop pause container
+	cont0, _ := testTask.ContainerByName(apitask.NetworkPauseContainerName)
+	taskEngine.(*DockerTaskEngine).stopContainer(testTask, cont0)
+	err = VerifyTaskStatus(apitaskstatus.TaskStopped, testTask.Arn, testEvents, t)
+	assert.NoError(t, err)
 }
 
 // This Test creates an IPC Semaphore in a container in TaskWithResource sharing the IPC namespace with Host.

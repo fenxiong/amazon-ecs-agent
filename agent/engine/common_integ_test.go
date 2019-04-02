@@ -92,6 +92,7 @@ func setup(cfg *config.Config, state dockerstate.TaskEngineState, t *testing.T) 
 	imageManager := NewImageManager(cfg, dockerClient, state)
 	imageManager.SetSaver(statemanager.NewNoopStateManager())
 	metadataManager := containermetadata.NewManager(dockerClient, cfg)
+	cfg.CNIPluginsPath = "/home/ec2-user/workplace/go/src/github.com/aws/amazon-ecs-agent/out/cni-plugins"
 
 	taskEngine := NewDockerTaskEngine(cfg, dockerClient, credentialsManager,
 		eventstream.NewEventStream("ENGINEINTEGTEST", context.Background()), imageManager, state, metadataManager, nil)
