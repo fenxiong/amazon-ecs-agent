@@ -1067,7 +1067,7 @@ func waitForStats(t *testing.T, stat *types.StatsJSON) {
 }
 
 func TestStatsInactivityTimeout(t *testing.T) {
-	shortInactivityTimeout := 100 * time.Millisecond
+	shortInactivityTimeout := 150 * time.Millisecond
 	mockDockerSDK, client, _, _, _, done := dockerClientSetup(t)
 	defer done()
 	mockDockerSDK.EXPECT().ContainerStats(gomock.Any(), gomock.Any(), true).Return(types.ContainerStats{
