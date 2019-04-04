@@ -8,4 +8,4 @@ matrix:
   include:
     - os: windows
       script:
-        - go test -v -race -tags unit -run "^Test.*InactivityTimeout$" -count 1000 -timeout 100m ./agent/dockerclient/dockerapi/
+        - go test -v -race -tags unit -run "^TestInactivity$" -count 4000 -timeout 100m ./agent/dockerclient/dockerapi/
