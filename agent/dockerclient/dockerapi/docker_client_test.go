@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1084,6 +1085,48 @@ func TestStatsInactivityTimeout(t *testing.T) {
 	newStat := <-stats
 
 	assert.Nil(t, newStat)
+}
+
+func TestInactivity(t *testing.T) {
+	readerDelay := 300 * time.Millisecond
+	inactivityDelay := 1 * time.Millisecond
+
+	timeoutHappens, _ := testInactivity(readerDelay, inactivityDelay)
+
+	assert.True(t, <-timeoutHappens)
+}
+
+func testInactivity(readerDelay time.Duration, inactivityDelay time.Duration) (<-chan bool, error) {
+	timeoutHappens := make(chan bool)
+
+	// mimic stats reading goroutine
+	go func() {
+		// marker that indicates whether inactivity timeout is triggered
+		var canceled uint32
+
+		// mimic inactivity handling goroutine, execute all atomic load/add and sleep operations
+		go func(canceled *uint32) {
+			var callCount uint64
+			atomic.AddUint64(&callCount, 1)
+
+			time.Sleep(inactivityDelay)
+			atomic.LoadUint64(&callCount)
+
+			time.Sleep(inactivityDelay)
+			atomic.LoadUint64(&callCount)
+
+			atomic.AddUint32(canceled, 1)
+		}(&canceled)
+
+		time.Sleep(readerDelay)
+		if atomic.LoadUint32(&canceled) != 0 { // inactivity timeout is triggered
+			timeoutHappens <- true
+		} else {
+			timeoutHappens <- false
+		}
+	}()
+
+	return timeoutHappens, nil
 }
 
 func TestStatsInactivityTimeoutNoHit(t *testing.T) {
