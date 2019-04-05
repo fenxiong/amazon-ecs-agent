@@ -410,7 +410,9 @@ func acsWsURL(endpoint, cluster, containerInstanceArn string, taskEngine engine.
 	query := url.Values{}
 	query.Set("clusterArn", cluster)
 	query.Set("containerInstanceArn", containerInstanceArn)
-	query.Set("agentHash", version.GitHashString())
+	// query.Set("agentHash", version.GitHashString())
+	seelog.Debugf("Setting agent sha to v1.25.0 sha: %s", "a8b7b7c0")
+	query.Set("agentHash", "a8b7b7c0")
 	query.Set("agentVersion", version.Version)
 	query.Set("seqNum", "1")
 	if dockerVersion, err := taskEngine.Version(); err == nil {

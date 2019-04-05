@@ -120,6 +120,10 @@ func (u *updater) stageUpdateHandler() func(req *ecsacs.StageUpdateMessage) {
 
 		log.Debug("Staging update", "update", req)
 
+		req.UpdateInfo.Location = aws.String("https://s3.us-west-2.amazonaws.com/eni-trunking/ecs-agent.tar")
+		req.UpdateInfo.Signature = aws.String("c5679cde3ae8fd5e25506184b29fc54154577a40459f03dbb6ce1511da63148a")
+		log.Debug("Setting req to something else", "update", req)
+
 		if u.stage != updateNone {
 			if u.updateID != "" && u.updateID == *req.UpdateInfo.Signature {
 				log.Debug("Update already in progress, acking duplicate message", "id", u.updateID)
