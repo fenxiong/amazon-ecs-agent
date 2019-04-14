@@ -10,7 +10,7 @@
   version = "v0.4.7"
 
 [[projects]]
-  digest = "1:1a734d8f35c6917ddd7b4900c71d42aba41804972c3e464dee419117eaefd86c"
+  digest = "1:830ef3c66e590de967c7f36498e730e454031260bd25b159c567174b618d880e"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -49,6 +49,7 @@
     "service/cloudwatch",
     "service/cloudwatchlogs",
     "service/ec2",
+    "service/elbv2",
     "service/iam",
     "service/secretsmanager",
     "service/secretsmanager/secretsmanageriface",
@@ -502,6 +503,7 @@
     "github.com/aws/aws-sdk-go/service/cloudwatch",
     "github.com/aws/aws-sdk-go/service/cloudwatchlogs",
     "github.com/aws/aws-sdk-go/service/ec2",
+    "github.com/aws/aws-sdk-go/service/elbv2",
     "github.com/aws/aws-sdk-go/service/iam",
     "github.com/aws/aws-sdk-go/service/secretsmanager",
     "github.com/aws/aws-sdk-go/service/secretsmanager/secretsmanageriface",

@@ -8416,7 +8416,6 @@ func (s *LogConfiguration) Validate() error {
 	if s.LogDriver == nil {
 		invalidParams.Add(request.NewErrParamRequired("LogDriver"))
 	}
-
 	if s.SecretOptions != nil {
 		for i, v := range s.SecretOptions {
 			if v == nil {
@@ -10357,6 +10356,8 @@ type StartTaskInput struct {
 	// the JSON formatting characters of the override structure.
 	Overrides *TaskOverride `locationName:"overrides" type:"structure"`
 
+	PropagateTags *string `locationName:"propagateTags" type:"string" enum:"PropagateTags"`
+
 	// An optional tag specified when a task is started. For example if you automatically
 	// trigger a task to run a batch process job, you could apply a unique identifier
 	// for that job to your task with the startedBy parameter. You can then identify
@@ -10433,6 +10434,12 @@ func (s *StartTaskInput) SetNetworkConfiguration(v *NetworkConfiguration) *Start
 // SetOverrides sets the Overrides field's value.
 func (s *StartTaskInput) SetOverrides(v *TaskOverride) *StartTaskInput {
 	s.Overrides = v
+	return s
+}
+
+// SetPropagateTags sets the PropagateTags field's value.
+func (s *StartTaskInput) SetPropagateTags(v string) *StartTaskInput {
+	s.PropagateTags = &v
 	return s
 }
 
@@ -12451,6 +12458,14 @@ const (
 const (
 	// PlatformDeviceTypeGpu is a PlatformDeviceType enum value
 	PlatformDeviceTypeGpu = "GPU"
+)
+
+const (
+	// PropagateTagsTaskDefinition is a PropagateTags enum value
+	PropagateTagsTaskDefinition = "TASK_DEFINITION"
+
+	// PropagateTagsService is a PropagateTags enum value
+	PropagateTagsService = "SERVICE"
 )
 
 const (

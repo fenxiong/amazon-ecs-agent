@@ -1598,6 +1598,10 @@
       "type":"list",
       "member":{"shape":"PortMapping"}
     },
+    "PropagateTags":{
+      "type":"string",
+      "enum": ["TASK_DEFINITION","SERVICE"]
+    },
     "ProxyConfiguration":{
       "type":"structure",
       "required":["containerName"],
@@ -1921,7 +1925,8 @@
         "containerInstances":{"shape":"StringList"},
         "startedBy":{"shape":"String"},
         "group":{"shape":"String"},
-        "networkConfiguration":{"shape":"NetworkConfiguration"}
+        "networkConfiguration":{"shape":"NetworkConfiguration"},
+        "propagateTags":{"shape":"PropagateTags"}
       }
     },
     "StartTaskResponse":{

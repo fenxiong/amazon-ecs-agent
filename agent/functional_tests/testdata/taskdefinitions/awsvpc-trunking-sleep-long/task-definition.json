@@ -1,0 +1,13 @@
+{
+  "family": "ecsftest-awsvpc-trunking-sleep-long",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "container_1",
+      "image": "amazonlinux:2",
+      "essential": true,
+      "memory": 512,
+      "command": ["sh", "-c", "sleep infinity"]
+    }
+  ]
+}

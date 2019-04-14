@@ -1,0 +1,10 @@
+{
+  "family": "ecsftest-awsvpc-trunking-imds",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [{
+    "image": "amazonlinux:2",
+    "name": "exit",
+    "memory": 128
+  }],
+  "command": ["sh", "-c", "curl -s 169.254.169.254; if [ $? -eq 7 ]; then exit 0; else exit 1; fi"]
+}

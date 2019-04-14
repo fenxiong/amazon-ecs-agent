@@ -1,0 +1,13 @@
+{
+  "family": "ecsftest-awsvpc-trunking-nginx",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [{
+    "image": "nginx:latest",
+    "name": "container_1",
+    "portMappings": [{
+      "containerPort": 80,
+      "hostPort": 80
+    }],
+    "memory": 128
+  }]
+}

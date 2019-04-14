@@ -20,6 +20,7 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"github.com/aws/amazon-ecs-agent/agent/ec2"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -41,6 +42,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
+
+	ec2sdk "github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/elbv2"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/docker/docker/api/types"
 	docker "github.com/docker/docker/client"
@@ -193,6 +197,16 @@ func (agent *TestAgent) platformIndependentCleanup() {
 	})
 }
 
+// Cleanup without stopping the Agent and deregistering.
+func (agent *TestAgent) TestCleanup() {
+	if agent.t.Failed() {
+		agent.t.Logf("Preserving test dir for failed test %s", agent.TestDir)
+	} else {
+		agent.t.Logf("Removing test dir for passed test %s", agent.TestDir)
+		os.RemoveAll(agent.TestDir)
+	}
+}
+
 func (agent *TestAgent) StartMultipleTasks(t *testing.T, taskDefinition string, num int) ([]*TestTask, error) {
 	t.Logf("Task definition: %s", taskDefinition)
 	cis := make([]*string, num)
@@ -261,7 +275,7 @@ func (agent *TestAgent) startAWSVPCTask(taskDefinition string) (*TestTask, error
 	agent.t.Logf("Task definition: %s", taskDefinition)
 	// Get the subnet ID, which is a required parameter for starting
 	// tasks in 'awsvpc' network mode
-	subnet, err := getSubnetID()
+	subnet, err := GetSubnetID()
 	if err != nil {
 		return nil, err
 	}
@@ -274,6 +288,44 @@ func (agent *TestAgent) startAWSVPCTask(taskDefinition string) (*TestTask, error
 		NetworkConfiguration: &ecs.NetworkConfiguration{
 			AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
 				Subnets: []*string{&subnet},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Failures) != 0 || len(resp.Tasks) == 0 {
+		return nil, errors.New("Failure starting task: " + *resp.Failures[0].Reason)
+	}
+
+	task := resp.Tasks[0]
+	agent.t.Logf("Started task: %s\n", *task.TaskArn)
+	return &TestTask{task}, nil
+}
+
+func (agent *TestAgent) StartAWSVPCTaskWithSecurityGroup(taskName, securityGroup string, overrides map[string]string) (*TestTask, error) {
+	taskDefinition, err := GetTaskDefinitionWithOverrides(taskName, overrides)
+	if err != nil {
+		return nil, err
+	}
+
+	agent.t.Logf("Task definition: %s", taskDefinition)
+	// Get the subnet ID, which is a required parameter for starting
+	// tasks in 'awsvpc' network mode
+	subnet, err := GetSubnetID()
+	if err != nil {
+		return nil, err
+	}
+
+	agent.t.Logf("Starting 'awsvpc' task in subnet: %s", subnet)
+	resp, err := ECS.StartTask(&ecs.StartTaskInput{
+		Cluster:            &agent.Cluster,
+		ContainerInstances: []*string{&agent.ContainerInstanceArn},
+		TaskDefinition:     &taskDefinition,
+		NetworkConfiguration: &ecs.NetworkConfiguration{
+			AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
+				Subnets: []*string{&subnet},
+				SecurityGroups: aws.StringSlice([]string{securityGroup}),
 			},
 		},
 	})
@@ -719,6 +771,20 @@ func RequireRegions(t *testing.T, supportedRegions []string, region string) {
 	}
 }
 
+// RequireInstanceTypes skips the test if current instance type is not a supported instance type
+func RequireInstanceTypes(t *testing.T, supportedTypePrefixes []string) {
+	iid, _ := ec2.NewEC2MetadataClient(nil).InstanceIdentityDocument()
+	instanceType := iid.InstanceType
+	for _, prefix := range supportedTypePrefixes {
+		if strings.HasPrefix(instanceType, prefix) {
+			return
+		}
+	}
+
+	t.Skipf("Skipped because the instance type %s is not a supported instance type. Supported instance type: %v",
+		instanceType, supportedTypePrefixes)
+}
+
 // GetInstanceProfileName gets the instance profile name
 func GetInstanceMetadata(path string) (string, error) {
 	ec2MetadataClient := ec2metadata.New(session.New())
@@ -837,8 +903,8 @@ func AttributesToMap(attributes []*ecs.Attribute) map[string]string {
 	return attributeMap
 }
 
-// getSubnetID gets the subnet id for the instance from ec2 instance metadata
-func getSubnetID() (string, error) {
+// GetSubnetID gets the subnet id for the instance from ec2 instance metadata
+func GetSubnetID() (string, error) {
 	ec2Metadata := ec2metadata.New(session.Must(session.NewSession()))
 	mac, err := ec2Metadata.GetMetadata("mac")
 	if err != nil {
@@ -850,6 +916,21 @@ func getSubnetID() (string, error) {
 	}
 
 	return subnet, nil
+}
+
+// GetVPCID gets the vpc id for the instance from ec2 instance metadata
+func GetVPCID() (string, error) {
+	ec2Metadata := ec2metadata.New(session.Must(session.NewSession()))
+	mac, err := ec2Metadata.GetMetadata("mac")
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to get mac from ec2 metadata")
+	}
+	vpc, err := ec2Metadata.GetMetadata("network/interfaces/macs/" + mac + "/vpc-id")
+	if err != nil {
+		return "", errors.Wrapf(err, "unable to get vpc from ec2 metadata")
+	}
+
+	return vpc, nil
 }
 
 // GetAccountID returns the aws account id from the instance metadata
@@ -885,4 +966,598 @@ func GetTaskID(taskARN string) (string, error) {
 	}
 
 	return resourceSplit[1], nil
+}
+
+// WaitContainerInstanceActive waits for a container instance to reach ACTIVE status by polling its status
+func (agent *TestAgent) WaitContainerInstanceStatus(desiredStatus string, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	errChan := make(chan error, 1)
+	containerInstanceStatus := ""
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			status, err := agent.getContainerInstanceStatus()
+			if err != nil {
+				errChan <- err
+				return
+			}
+			containerInstanceStatus = status
+
+			if status == desiredStatus {
+				break
+			}
+			if desiredStatus == "ACTIVE" {
+				if status == "REGISTRATION_FAILED" || status == "INACTIVE" {
+					errChan <- errors.Errorf("Container instance ends at status %s; will never reach ACTIVE", status)
+					return
+				}
+			}
+			time.Sleep(5 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for container instance '%s' to reach '%s', status is '%s'",
+			desiredStatus, agent.ContainerInstanceArn, containerInstanceStatus)
+	}
+}
+
+func (agent *TestAgent) getContainerInstanceStatus() (string, error) {
+	res, err := ECS.DescribeContainerInstances(&ecs.DescribeContainerInstancesInput{
+		Cluster: aws.String(agent.Cluster),
+		ContainerInstances: aws.StringSlice([]string{agent.ContainerInstanceArn}),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if len(res.Failures) != 0 {
+		return "", errors.Errorf("unable to describe container instance %s: %v", agent.ContainerInstanceArn, res.Failures)
+	}
+
+	return aws.StringValue(res.ContainerInstances[0].Status), nil
+}
+
+// GetNetworkInterfaceCount returns the number of network interfaces attached to the instance
+func GetNetworkInterfaceCount() (int, error) {
+	macs, err := ec2.NewEC2MetadataClient(nil).AllENIMacs()
+	if err != nil {
+		return 0, err
+	}
+
+	return len(strings.Split(macs, "\n")), nil
+}
+
+// WaitNetworkInterfaceCount waits until there are certain number of ENIs attached to the instance
+func WaitNetworkInterfaceCount(desiredCount int, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	errChan := make(chan error, 1)
+	networkInterfaceCount := 0
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			count, err := GetNetworkInterfaceCount()
+			if err != nil {
+				errChan <- err
+				return
+			}
+			networkInterfaceCount = count
+
+			if count == desiredCount {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for instance to have %d network interfaces attached; number of interfaces attached: %d",
+			desiredCount, networkInterfaceCount)
+	}
+}
+
+func GetEC2Client(region string) *ec2sdk.EC2 {
+	if region == "" {
+		iid, _ := ec2.NewEC2MetadataClient(nil).InstanceIdentityDocument()
+		region = iid.Region
+	}
+
+	var ec2Config aws.Config
+	ec2Config.Region = aws.String(region)
+	return ec2sdk.New(session.New(&ec2Config), aws.NewConfig().WithMaxRetries(5))
+}
+
+func CreateNetworkInterface(client *ec2sdk.EC2, subnetID string) (string, error) {
+	input := &ec2sdk.CreateNetworkInterfaceInput{
+		SubnetId: aws.String(subnetID),
+		Description: aws.String("Network Interface created for ENI Trunking manual tests"),
+	}
+
+	output, err := client.CreateNetworkInterface(input)
+	if err != nil {
+		return "", err
+	}
+
+	return aws.StringValue(output.NetworkInterface.NetworkInterfaceId), nil
+}
+
+func AttachNetworkInterface(client *ec2sdk.EC2, instanceID, networkInterfaceID string, deviceIndex int64) (string, error) {
+	input := &ec2sdk.AttachNetworkInterfaceInput{
+		DeviceIndex: aws.Int64(deviceIndex),
+		InstanceId: aws.String(instanceID),
+		NetworkInterfaceId: aws.String(networkInterfaceID),
+	}
+
+	output, err := client.AttachNetworkInterface(input)
+	if err != nil {
+		return "", err
+	}
+
+	return aws.StringValue(output.AttachmentId), nil
+}
+
+func DetachNetworkInterface(client *ec2sdk.EC2, attachmentID string) error {
+	input := &ec2sdk.DetachNetworkInterfaceInput{
+		AttachmentId: aws.String(attachmentID),
+		Force: aws.Bool(true),
+	}
+
+	_, err := client.DetachNetworkInterface(input)
+	return err
+}
+
+func DeleteNetworkInterface(client *ec2sdk.EC2, networkInterfaceID string) error {
+	input  := &ec2sdk.DeleteNetworkInterfaceInput{
+		NetworkInterfaceId: aws.String(networkInterfaceID),
+	}
+
+	_, err := client.DeleteNetworkInterface(input)
+	return err
+}
+
+// WaitNetworkInterfaceAvailable waits for a network interface to reach available status by polling its status
+func WaitNetworkInterfaceAvailable(client *ec2sdk.EC2, networkInterfaceID string, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	errChan := make(chan error, 1)
+	networkInterfaceStatus := ""
+	desiredStatus := "available"
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			status, err := getNetworkInterfaceStatus(client, networkInterfaceID)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			networkInterfaceStatus = status
+
+			if status == desiredStatus {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for network interface '%s' to reach 'available', status is '%s'",
+			networkInterfaceID, networkInterfaceStatus)
+	}
+}
+
+func getNetworkInterfaceStatus(client *ec2sdk.EC2, networkInterfaceID string) (string, error) {
+	res, err := client.DescribeNetworkInterfaces(&ec2sdk.DescribeNetworkInterfacesInput{
+		NetworkInterfaceIds: aws.StringSlice([]string{networkInterfaceID}),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return aws.StringValue(res.NetworkInterfaces[0].Status), nil
+}
+
+func GetResourcesWithTagKeys(client *ec2sdk.EC2, keys []string) ([]*ec2sdk.TagDescription, error) {
+	filters := []*ec2sdk.Filter{
+		{
+			Name: aws.String("key"),
+			Values: aws.StringSlice(keys),
+		},
+	}
+
+	res, err := client.DescribeTags(&ec2sdk.DescribeTagsInput{
+		Filters: filters,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res.Tags, nil
+}
+
+func VerifyEndpoint(client *http.Client, endpoint string, t *testing.T) error {
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		resp, err := client.Get(endpoint)
+		if err != nil {
+			t.Logf("Unable to get from endpoint %s: %v", endpoint, err)
+		} else if resp.StatusCode != http.StatusOK {
+			t.Logf("Unable to get status 200 from endpoint %s, status code: %d", endpoint, resp.StatusCode)
+		} else {
+			return nil
+		}
+	}
+
+	return errors.Errorf("failed to reach endpoint %s", endpoint)
+}
+
+func (agent *TestAgent) StartAWSVPCTaskWithTags(taskName string, overrides map[string]string) (*TestTask, error) {
+	taskDefinition, err := GetTaskDefinitionWithOverrides(taskName, overrides)
+	if err != nil {
+		return nil, err
+	}
+
+	agent.t.Logf("Task definition: %s", taskDefinition)
+	// Get the subnet ID, which is a required parameter for starting
+	// tasks in 'awsvpc' network mode
+	subnet, err := GetSubnetID()
+	if err != nil {
+		return nil, err
+	}
+
+	agent.t.Logf("Starting 'awsvpc' task with tags in subnet: %s", subnet)
+	resp, err := ECS.StartTask(&ecs.StartTaskInput{
+		Cluster:            &agent.Cluster,
+		ContainerInstances: []*string{&agent.ContainerInstanceArn},
+		TaskDefinition:     &taskDefinition,
+		NetworkConfiguration: &ecs.NetworkConfiguration{
+			AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
+				Subnets: []*string{&subnet},
+			},
+		},
+		PropagateTags: aws.String(ecs.PropagateTagsTaskDefinition),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(resp.Failures) != 0 || len(resp.Tasks) == 0 {
+		return nil, errors.New("Failure starting task: " + *resp.Failures[0].Reason)
+	}
+
+	task := resp.Tasks[0]
+	agent.t.Logf("Started task: %s\n", *task.TaskArn)
+	return &TestTask{task}, nil
+}
+
+func (agent *TestAgent) CreateService(taskName, serviceName, targetGroupARN, containerName string,
+	containerPort, desiredCount int, overrides map[string]string) (*ecs.Service, error) {
+	taskDefinition, err := GetTaskDefinition(taskName)
+	if err != nil {
+		return nil, err
+	}
+
+	agent.t.Logf("Task definition: %s", taskDefinition)
+	// Get the subnet ID, which is a required parameter for starting
+	// tasks in 'awsvpc' network mode
+	subnet, err := GetSubnetID()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := ECS.CreateService(&ecs.CreateServiceInput{
+		Cluster: aws.String(agent.Cluster),
+		ServiceName: aws.String(serviceName),
+		TaskDefinition: aws.String(taskDefinition),
+		LoadBalancers: []*ecs.LoadBalancer{
+			{
+				TargetGroupArn: aws.String(targetGroupARN),
+				ContainerName: aws.String(containerName),
+				ContainerPort: aws.Int64(int64(containerPort)),
+			},
+		},
+		DesiredCount: aws.Int64(int64(desiredCount)),
+		NetworkConfiguration: &ecs.NetworkConfiguration{
+			AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
+				Subnets: []*string{&subnet},
+			},
+		},
+	})
+
+	if err != nil{
+		return nil, err
+	}
+
+	return resp.Service, nil
+}
+
+func GetELBClient(region string) *elbv2.ELBV2 {
+	if region == "" {
+		iid, _ := ec2.NewEC2MetadataClient(nil).InstanceIdentityDocument()
+		region = iid.Region
+	}
+
+	var cfg aws.Config
+	cfg.Region = aws.String(region)
+	sess := session.New(&cfg)
+	return elbv2.New(sess)
+}
+
+func CreateLoadBalancer(client *elbv2.ELBV2, name, subnet, lbType string) (*elbv2.LoadBalancer, error) {
+	resp, err := client.CreateLoadBalancer(&elbv2.CreateLoadBalancerInput{
+		Name: aws.String(name),
+		Subnets: aws.StringSlice([]string{subnet}),
+		Type: aws.String(lbType),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.LoadBalancers[0], nil
+}
+
+func CreateTargetGroup(client *elbv2.ELBV2, name, protocol, targetType, vpcID string, port int) (string, error) {
+	resp, err := client.CreateTargetGroup(&elbv2.CreateTargetGroupInput{
+		Name: aws.String(name),
+		Protocol: aws.String(protocol),
+		TargetType: aws.String(targetType),
+		VpcId: aws.String(vpcID),
+		Port: aws.Int64(int64(port)),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return aws.StringValue(resp.TargetGroups[0].TargetGroupArn), nil
+}
+
+func CreateListener(client *elbv2.ELBV2, loadBalancerARN, targetGroupARN, protocol string, port int) (string, error) {
+	resp, err := client.CreateListener(&elbv2.CreateListenerInput{
+		LoadBalancerArn: aws.String(loadBalancerARN),
+		Protocol: aws.String(protocol),
+		Port: aws.Int64(int64(port)),
+		DefaultActions: []*elbv2.Action{
+			{
+				Type: aws.String("forward"),
+				TargetGroupArn: aws.String(targetGroupARN),
+			},
+		},
+	})
+
+	if err != nil {
+		return "", nil
+	}
+
+	return aws.StringValue(resp.Listeners[0].ListenerArn), nil
+}
+
+func DeleteLoadBalancer(client *elbv2.ELBV2, loadBalancerARN string) error {
+	_, err := client.DeleteLoadBalancer(&elbv2.DeleteLoadBalancerInput{
+		LoadBalancerArn: aws.String(loadBalancerARN),
+	})
+
+	return err
+}
+
+func DeleteTargetGroup(client *elbv2.ELBV2, targetGroupARN string) error {
+	_, err := client.DeleteTargetGroup(&elbv2.DeleteTargetGroupInput{
+		TargetGroupArn: aws.String(targetGroupARN),
+	})
+
+	return err
+}
+
+func DeleteListener(client *elbv2.ELBV2, listenerARN string) error {
+	_, err := client.DeleteListener(&elbv2.DeleteListenerInput{
+		ListenerArn: aws.String(listenerARN),
+	})
+
+	return err
+}
+
+// WaitLoadBalancerActive waits for a load balancer to reach active by polling its status
+func WaitLoadBalancerActive(client *elbv2.ELBV2, loadBalancerARN string, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+	errChan := make(chan error, 1)
+	loadBalancerStatus := ""
+	desiredStatus := "active"
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			status, err := getLoadBalancerStatus(client, loadBalancerARN)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			loadBalancerStatus = status
+
+			if status == desiredStatus {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for load balancer '%s' to reach 'active', status is '%s'",
+			loadBalancerARN, loadBalancerStatus)
+	}
+}
+
+func getLoadBalancerStatus(client *elbv2.ELBV2, loadBalancerARN string) (string, error) {
+	resp, err := client.DescribeLoadBalancers(&elbv2.DescribeLoadBalancersInput{
+		LoadBalancerArns: aws.StringSlice([]string{loadBalancerARN}),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return aws.StringValue(resp.LoadBalancers[0].State.Code), nil
+}
+
+func WaitEndpointAvailable(client *http.Client, endpoint string, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+
+	cancelled := false
+	errChan := make(chan error, 1)
+	go func() {
+		for !cancelled {
+			err := getEndpoint(client, endpoint)
+
+			if err == nil {
+				break
+			}
+
+			time.Sleep(2 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for endpoint '%s' to be available",
+			endpoint)
+	}
+}
+
+func getEndpoint(client *http.Client, endpoint string) error {
+	resp, err := client.Get(endpoint)
+	if err != nil {
+		return err
+	}
+
+	if resp.Body != nil {
+		defer resp.Body.Close()
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return errors.Errorf("incorrect status code %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+func WaitServiceStatus(cluster, serviceName, desiredStatus string, timeout time.Duration) error {
+	timer := time.NewTimer(timeout)
+
+	errChan := make(chan error, 1)
+	serviceStatus := ""
+
+	cancelled := false
+	go func() {
+		for !cancelled {
+			status, err := getServiceStatus(cluster, serviceName)
+			if err != nil {
+				errChan <- err
+				return
+			}
+			serviceStatus = status
+
+			if status == desiredStatus {
+				break
+			}
+			time.Sleep(3 * time.Second)
+		}
+		errChan <- nil
+	}()
+
+	select {
+	case err := <-errChan:
+		return err
+	case <-timer.C:
+		cancelled = true
+		return errors.Errorf("Timed out waiting for service '%s' to reach status '%s', current status is '%s'",
+			serviceName, desiredStatus, serviceStatus)
+	}
+}
+
+func getServiceStatus(cluster, serviceName string) (string, error){
+	resp, err := ECS.DescribeServices(&ecs.DescribeServicesInput{
+		Cluster: aws.String(cluster),
+		Services: aws.StringSlice([]string{serviceName}),
+	})
+
+	if err != nil {
+		return "",nil
+	}
+
+	return aws.StringValue(resp.Services[0].Status), nil
+}
+
+func GetTaskPrivateIP(task *ecs.Task) (string, error) {
+	if task.Attachments == nil {
+		return "", errors.New("private ip not found")
+	}
+
+	for _, detail := range task.Attachments[0].Details {
+		if aws.StringValue(detail.Name) == "privateIPv4Address" {
+			return aws.StringValue(detail.Value), nil
+		}
+	}
+
+	return "", errors.New("private ip not found")
+}
+
+func CreateSecurityGroup(client *ec2sdk.EC2, groupName, description, vpcID string) (string, error) {
+	resp, err := client.CreateSecurityGroup(&ec2sdk.CreateSecurityGroupInput{
+		GroupName: aws.String(groupName),
+		Description: aws.String(description),
+		VpcId: aws.String(vpcID),
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return aws.StringValue(resp.GroupId), nil
+}
+
+func DeleteSecurityGroup(client *ec2sdk.EC2, groupID string) error {
+	_, err := client.DeleteSecurityGroup(&ec2sdk.DeleteSecurityGroupInput{
+		GroupId: aws.String(groupID),
+	})
+
+	return err
+}
+
+func AuthorizeSecurityGroupIngress(client *ec2sdk.EC2, groupID, ipProtocol, cidrIP string, fromPort, toPort int) error {
+	_, err := client.AuthorizeSecurityGroupIngress(&ec2sdk.AuthorizeSecurityGroupIngressInput{
+		GroupId: aws.String(groupID),
+		IpProtocol: aws.String(ipProtocol),
+		FromPort: aws.Int64(int64(fromPort)),
+		ToPort: aws.Int64(int64(toPort)),
+		CidrIp: aws.String(cidrIP),
+	})
+
+	return err
 }

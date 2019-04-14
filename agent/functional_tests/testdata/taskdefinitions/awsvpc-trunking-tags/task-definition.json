@@ -1,0 +1,19 @@
+{
+  "family": "ecsftest-awsvpc-trunking-tags",
+  "networkMode": "awsvpc",
+  "tags": [
+    {
+      "key": "test-tag-key",
+      "value": "test-tag-value"
+    }
+  ],
+  "containerDefinitions": [
+    {
+      "name": "container_1",
+      "image": "amazonlinux:2",
+      "essential": true,
+      "memory": 512,
+      "command": ["sh", "-c", "sleep infinity"]
+    }
+  ]
+}

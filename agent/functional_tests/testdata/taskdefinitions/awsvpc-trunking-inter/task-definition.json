@@ -1,0 +1,25 @@
+{
+  "family": "ecsftest-awsvpc-trunking-inter",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "container_1",
+      "image": "amazonlinux:2",
+      "essential": true,
+      "memory": 512,
+      "command": ["sh", "-c", "while true; do sleep 1; curl -s localhost | grep nginx; if [ $? -eq 0 ]; then exit 0; fi done"]
+    },
+    {
+      "name": "container_2",
+      "image": "nginx:latest",
+      "essential": true,
+      "memory": 512,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80
+        }
+      ]
+    }
+  ]
+}
