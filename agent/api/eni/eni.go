@@ -215,6 +215,9 @@ func ValidateTaskENI(acsenis []*ecsacs.ElasticNetworkInterface) error {
 		return errors.Errorf("eni message validation: empty eni id in the message")
 	}
 
+	// change to lower case
+	acsenis[0].InterfaceAssociationProtocol = aws.String(strings.ToLower(aws.StringValue(acsenis[0].InterfaceAssociationProtocol)))
+
 	if (acsenis[0].InterfaceAssociationProtocol != nil) && (aws.StringValue(acsenis[0].InterfaceAssociationProtocol) !=
 		VLANInterfaceAssociationProtocol) && (aws.StringValue(acsenis[0].InterfaceAssociationProtocol) !=
 		DefaultInterfaceAssociationProtocol) {
