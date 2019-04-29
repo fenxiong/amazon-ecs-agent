@@ -613,6 +613,7 @@ func (dg *dockerGoClient) DescribeContainer(ctx context.Context, dockerID string
 	if err != nil {
 		return apicontainerstatus.ContainerStatusNone, DockerContainerMetadata{Error: CannotDescribeContainerError{err}}
 	}
+	seelog.Infof("After inspect container, host config: %+v, config: %v", dockerContainer.HostConfig, dockerContainer.Config)
 	return DockerStateToState(dockerContainer.ContainerJSONBase.State), MetadataFromContainer(dockerContainer)
 }
 

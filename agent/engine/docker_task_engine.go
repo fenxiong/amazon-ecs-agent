@@ -298,6 +298,7 @@ func (engine *DockerTaskEngine) synchronizeState() {
 // the agent has been restarted. It also synchronizes states of all of the containers
 // in tasks that need to be started.
 func (engine *DockerTaskEngine) filterTasksToStartUnsafe(tasks []*apitask.Task) []*apitask.Task {
+	seelog.Infof("In filterTasksToStartUnsafe")
 	var tasksToStart []*apitask.Task
 	for _, task := range tasks {
 		conts, ok := engine.state.ContainerMapByArn(task.Arn)
@@ -371,6 +372,8 @@ func (engine *DockerTaskEngine) synchronizeContainerStatus(container *apicontain
 			seelog.Warnf("Task engine [%s]: could not find matching container for expected name [%s]: %v",
 				task.Arn, container.DockerName, err)
 		} else {
+			seelog.Infof("In synchronizeContainerStatus, container name: %s", container.Container.Name)
+			seelog.Infof("Synchronize result: %+v", describedContainer)
 			// update the container metadata in case the container was created during agent restart
 			metadata := dockerapi.MetadataFromContainer(describedContainer)
 			updateContainerMetadata(&metadata, container.Container, task)
@@ -385,6 +388,9 @@ func (engine *DockerTaskEngine) synchronizeContainerStatus(container *apicontain
 	}
 
 	currentState, metadata := engine.client.DescribeContainer(engine.ctx, container.DockerID)
+	seelog.Infof("Described container: %+v", container)
+	seelog.Infof("State: %+v", currentState)
+	seelog.Infof("Metadata: %+v", metadata)
 	if metadata.Error != nil {
 		currentState = apicontainerstatus.ContainerStopped
 		// If this is a Docker API error
