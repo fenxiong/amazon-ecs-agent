@@ -1607,3 +1607,83 @@ func TestAppMeshCNIPlugin(t *testing.T) {
 
 	assert.Equal(t, 42, exitCode, fmt.Sprintf("Expected exit code of 42; got %d", exitCode))
 }
+
+// TestTrunkENIAttachDetachWorkflow tests that when ENI trunking is enabled, the Trunk ENI is attached
+// when container instance reaches ACTIVE status, and it's detached when the container instance is deregistered
+func TestTrunkENIAttachDetachWorkflow(t *testing.T) {
+	asyncWaitDuration := 30 * time.Second
+
+	// TODO: add more when backend supports more
+	RequireInstanceTypes(t, []string{"c5", "m5"})
+
+	// Enable ENI Trunking account setting
+	putAccountSettingInput := ecsapi.PutAccountSettingInput{
+		Name:  aws.String("awsvpcTrunking"),
+		Value: aws.String("enabled"),
+	}
+	_, err := ECS.PutAccountSetting(&putAccountSettingInput)
+	require.NoError(t, err)
+
+	existingMacs, err := GetNetworkInterfaceMacs()
+	require.NoError(t, err)
+	existingInterfaceCount := len(existingMacs)
+
+	agentOptions := &AgentOptions{
+		EnableTaskENI: true,
+	}
+	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+
+	agent := RunAgent(t, agentOptions)
+	defer func() {
+		err := agent.StopAgent()
+		assert.NoError(t, err)
+
+		_, err = ECS.DeregisterContainerInstance(&ecsapi.DeregisterContainerInstanceInput{
+			Cluster:           &agent.Cluster,
+			ContainerInstance: &agent.ContainerInstanceArn,
+			Force:             aws.Bool(true),
+		})
+		assert.NoError(t, err)
+
+		// Wait and verify that the Trunk ENI is detached
+		err = WaitNetworkInterfaceCount(existingInterfaceCount, asyncWaitDuration)
+		assert.NoError(t, err)
+
+		agent.TestCleanup()
+	}()
+	// TODO: when merging the changes, change to 1.27.1
+	agent.RequireVersion(">=1.26.0")
+
+	// Wait for container instance to become active
+	err = agent.WaitContainerInstanceActive(asyncWaitDuration)
+	require.NoError(t, err)
+
+	// Expect one more interface to be attached (i.e. the Trunk)
+	macs, err := GetNetworkInterfaceMacs()
+	require.NoError(t, err)
+	assert.Equal(t, existingInterfaceCount + 1, len(macs))
+
+	// Check that there's one ENI attachment in DescribeContainerInstances response and it matches
+	// the one on the instance
+	resp, err := ECS.DescribeContainerInstances(&ecsapi.DescribeContainerInstancesInput{
+		Cluster: &agent.Cluster,
+		ContainerInstances: aws.StringSlice([]string{agent.ContainerInstanceArn}),
+	})
+	require.NoError(t, err)
+	describedContainerInstance := resp.ContainerInstances[0]
+	assert.Equal(t, "ACTIVE", aws.StringValue(describedContainerInstance.Status))
+	assert.Equal(t, 1, len(describedContainerInstance.Attachments))
+	checkMacSucceeds := false
+	for _, detail := range describedContainerInstance.Attachments[0].Details {
+		if aws.StringValue(detail.Name) == "macAddress" {
+			if strings.Contains(strings.Join(macs, "\n"), aws.StringValue(detail.Value)) {
+				checkMacSucceeds = true
+			}
+		}
+	}
+	assert.True(t, checkMacSucceeds)
+
+	assert.Equal(t, 1, len(resp.ContainerInstances[0].Attachments))
+
+
+}
