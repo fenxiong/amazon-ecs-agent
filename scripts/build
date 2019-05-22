@@ -52,11 +52,14 @@ fi
 
 cd "${ROOT}"
 if [[ "${static}" == "true" ]]; then
-	CGO_ENABLED=0 go build -installsuffix cgo -a -ldflags "${LDFLAGS} -s" -o $build_exe ./agent/
+	# go get github.com/cihub/seelog
+	go build -buildmode=plugin -o plugin.so ./misc/plugin/plugin.go
+	CGO_ENABLED=1 go build -installsuffix cgo -a -ldflags "${LDFLAGS} -s" -o $build_exe ./agent/
 else
 	go build -o $build_exe ./agent/
 fi
 
 if [[ -n "${output_directory}" ]]; then
   mv $build_exe "${output_directory}"
+  mv plugin.so "${output_directory}"
 fi

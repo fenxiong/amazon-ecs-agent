@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"plugin"
 
 	"github.com/aws/amazon-ecs-agent/agent/metrics"
 
@@ -209,7 +210,45 @@ func (agent *ecsAgent) start() int {
 	client := ecsclient.NewECSClient(agent.credentialProvider, agent.cfg, agent.ec2MetadataClient)
 
 	agent.initializeResourceFields(credentialsManager)
+
+	agent.testPlugin()
 	return agent.doStart(containerChangeEventStream, credentialsManager, state, imageManager, client)
+}
+
+func (agent *ecsAgent) testPlugin() {
+	defer func() {
+		if r := recover(); r != nil {
+			seelog.Infof("Recovered from panic: %v", r)
+		}
+	}()
+
+	seelog.Info("***** In testPlugin *****")
+	// p, err := plugin.Open("/home/ec2-user/workplace/go/src/github.com/aws/amazon-ecs-agent/out/plugin.so")
+	p, err := plugin.Open("/plugins/plugin.so")
+	if err != nil {
+		seelog.Infof("Error opening plugin: %v", err)
+		panic(err)
+	}
+	seelog.Info("After opening plugin")
+
+	v, err := p.Lookup("V")
+	if err != nil {
+		seelog.Infof("Error lookup symbol V: %v", err)
+		panic(err)
+	}
+	seelog.Info("After looking up symbol V")
+
+	f, err := p.Lookup("F")
+	if err != nil {
+		seelog.Infof("Error lookup symbol F: %v", err)
+		panic(err)
+	}
+	seelog.Info("After looking up symbol F")
+
+	*v.(*int) = 8
+	f.(func())() // prints "Hello, number 7"
+	fmt.Println("Try fmt")
+	seelog.Info("***** Out of testPlugin *****")
 }
 
 // doStart is the worker invoked by start for starting the ECS Agent. This involves
