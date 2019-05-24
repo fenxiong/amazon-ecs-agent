@@ -73,6 +73,8 @@ const (
 	NvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
 	GPUAssociationType         = "gpu"
 
+	EIAAssociationType         = "elastic-inference"
+
 	ContainerOrderingCreateCondition = "CREATE"
 	ContainerOrderingStartCondition  = "START"
 
@@ -112,7 +114,7 @@ type Task struct {
 	// Containers are the containers for the task
 	Containers []*apicontainer.Container
 	// Associations are the available associations for the task.
-	Associations []Association `json:"associations"`
+	Associations []*Association `json:"associations"`
 	// ResourcesMapUnsafe is the map of resource type to corresponding resources
 	ResourcesMapUnsafe resourcetype.ResourcesMap `json:"resources"`
 	// Volumes are the volumes for the task
@@ -307,7 +309,18 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 	// Adds necessary Pause containers for sharing PID or IPC namespaces
 	task.addNamespaceSharingProvisioningDependency(cfg)
 
+	task.populateHealthcheckContainerEnvs()
+
 	return nil
+}
+
+func (task *Task) populateHealthcheckContainerEnvs() {
+	for _, container := range task.Containers {
+		if container.Name == "healthcheck" {
+			seelog.Info("Found container with name 'healthcheck'. Setting health check envs.")
+			// set envs
+		}
+	}
 }
 
 func (task *Task) addGPUResource() error {
@@ -2013,9 +2026,21 @@ func (task *Task) AssociationByTypeAndName(associationType, associationName stri
 
 	for _, association := range task.Associations {
 		if association.Type == associationType && association.Name == associationName {
-			return &association, true
+			return association, true
 		}
 	}
 
 	return nil, false
+}
+
+func (task *Task) UpdateAssociationHealth(associationType, associationName, health string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+
+	for _, association := range task.Associations {
+		if association.Type == associationType && association.Name == associationName {
+			association.SetAssociationHealth(health)
+			seelog.Infof("Update association health, association: %s", association.String())
+		}
+	}
 }

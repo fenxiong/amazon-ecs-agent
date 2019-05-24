@@ -24,4 +24,5 @@ import (
 type ContainerMetadataResolver interface {
 	ResolveTask(string) (*apitask.Task, error)
 	ResolveContainer(string) (*apicontainer.DockerContainer, error)
+	ResolveEIAs(taskARN, dockerID string) ([]*apitask.Association, error)
 }

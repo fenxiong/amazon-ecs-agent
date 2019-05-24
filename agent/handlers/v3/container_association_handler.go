@@ -16,6 +16,8 @@ package v3
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/aws/amazon-ecs-agent/agent/statemanager"
+	"github.com/pkg/errors"
 	"net/http"
 
 	"github.com/aws/amazon-ecs-agent/agent/engine/dockerstate"
@@ -39,9 +41,13 @@ var (
 	ContainerAssociationPath = fmt.Sprintf("/v3/%s/associations/%s/%s",
 		utils.ConstructMuxVar(v3EndpointIDMuxName, utils.AnythingButSlashRegEx),
 		utils.ConstructMuxVar(associationTypeMuxName, utils.AnythingButSlashRegEx),
-		utils.ConstructMuxVar(associationNameMuxName, utils.AnythingButEmptyRegEx))
+		utils.ConstructMuxVar(associationNameMuxName, utils.AnythingButSlashRegEx))
 	// Treat "/v3/<v3 endpoint id>/<association type>/" as a container association endpoint with empty association name (therefore invalid), to be consistent with similar situation in credentials endpoint and v3 metadata endpoint
 	ContainerAssociationPathWithSlash = ContainerAssociationsPath + "/"
+	ContainerAssociationHealthPath = fmt.Sprintf("/v3/%s/associations/%s/%s/health",
+		utils.ConstructMuxVar(v3EndpointIDMuxName, utils.AnythingButSlashRegEx),
+		utils.ConstructMuxVar(associationTypeMuxName, utils.AnythingButSlashRegEx),
+		utils.ConstructMuxVar(associationNameMuxName, utils.AnythingButSlashRegEx))
 )
 
 // ContainerAssociationHandler returns the handler method for handling container associations requests.
@@ -108,6 +114,93 @@ func ContainerAssociationHandler(state dockerstate.TaskEngineState) func(http.Re
 
 		writeContainerAssociationResponse(w, taskARN, associationType, associationName, state)
 	}
+}
+
+func ContainerAssociationHealthHandler(state dockerstate.TaskEngineState, stateSaver statemanager.Saver) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		seelog.Infof("Receive health request: %+v", r)
+
+		// get association from request
+		taskARN, err := getTaskARNByRequest(r, state)
+		if err != nil {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth, err, w)
+			return
+		}
+
+		associationType, err := getAssociationTypeByRequest(r)
+		if err != nil {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth, err, w)
+			return
+		}
+
+		associationName, err := getAssociationNameByRequest(r)
+		if err != nil {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth, err, w)
+			return
+		}
+
+		task, ok := state.TaskByArn(taskARN)
+		if !ok {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth,
+				errors.Errorf("unable to get task from task arn: %s", taskARN), w)
+			return
+		}
+
+		association, ok := task.AssociationByTypeAndName(associationType, associationName)
+		if !ok {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth,
+				errors.Errorf("unable to get association from association type %s and name %s", associationType,
+					associationName), w)
+		}
+
+		// get container from request
+		containerID, err := getContainerIDByRequest(r, state)
+		if err != nil {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth, err, w)
+			return
+		}
+
+		container, ok := state.ContainerByID(containerID)
+		if !ok {
+			writeFailureResponse(utils.RequestTypeContainerAssociationHealth,
+				errors.Errorf("unable to get container from container id: %s", containerID), w)
+			return
+		}
+
+		containerName := container.Container.Name
+		seelog.Infof("Receive container health request from container '%s'", containerName)
+
+		if containerName !=  "healthcheck" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+
+		seelog.Infof("Before updating health status, task association: %s", task.Associations[0].String())
+
+		healthStatus := r.Form.Get("healthStatus")
+		seelog.Infof("Trying to update health status of association '%s' to '%s'", association.Name, healthStatus)
+		task.UpdateAssociationHealth(associationType, associationName, healthStatus)
+
+		seelog.Infof("After updating health status, task association: %s", task.Associations[0].String())
+
+		err = stateSaver.ForceSave()
+		seelog.Infof("Save err: %v", err)
+		
+		w.WriteHeader(http.StatusOK)
+		return
+
+		// get associated EIA with this container
+
+		// if association not match, return 403 forbidden
+
+		// return 200 ok with debug message
+	}
+}
+
+func writeFailureResponse(requestType string, err error, w http.ResponseWriter) {
+	responseJSON, _ := json.Marshal(fmt.Sprintf("%s request handler: %s", requestType, err.Error()))
+	utils.WriteJSONToResponse(w, http.StatusBadRequest, responseJSON, requestType)
 }
 
 func writeContainerAssociationsResponse(w http.ResponseWriter, containerID, taskARN, associationType string, state dockerstate.TaskEngineState) {

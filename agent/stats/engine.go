@@ -83,6 +83,8 @@ type DockerStatsEngine struct {
 	tasksToContainers map[string]map[string]*StatsContainer
 	// tasksToHealthCheckContainers map task arns to the containers that has health check enabled
 	tasksToHealthCheckContainers map[string]map[string]*StatsContainer
+	// tasksToEIAs map task arns to the EIAs in the task
+	tasksToEIAs map[string]map[string]*apitask.Association
 	// tasksToDefinitions maps task arns to task definition name and family metadata objects.
 	tasksToDefinitions map[string]*taskDefinition
 }
@@ -113,6 +115,30 @@ func (resolver *DockerContainerMetadataResolver) ResolveContainer(dockerID strin
 	return container, nil
 }
 
+func (resolver *DockerContainerMetadataResolver) ResolveEIAs(taskARN, dockerID string) ([]*apitask.Association, error) {
+	container, err := resolver.ResolveContainer(dockerID)
+	if err != nil {
+		return nil, err
+	}
+
+	task, found := resolver.dockerTaskEngine.State().TaskByArn(taskARN)
+	if !found {
+		return nil, fmt.Errorf("could not resolve task arn: %s", taskARN)
+	}
+
+	associationNames := task.AssociationsByTypeAndContainer(apitask.EIAAssociationType, container.Container.Name)
+
+	var eias []*apitask.Association
+	for _, associationName := range associationNames {
+		association, ok := task.AssociationByTypeAndName(apitask.EIAAssociationType, associationName)
+		if ok {
+			eias = append(eias, association)
+		}
+	}
+
+	return eias, nil
+}
+
 // NewDockerStatsEngine creates a new instance of the DockerStatsEngine object.
 // MustInit() must be called to initialize the fields of the new event listener.
 func NewDockerStatsEngine(cfg *config.Config, client dockerapi.DockerClient, containerChangeEventStream *eventstream.EventStream) *DockerStatsEngine {
@@ -122,6 +148,7 @@ func NewDockerStatsEngine(cfg *config.Config, client dockerapi.DockerClient, con
 		disableMetrics:               cfg.DisableMetrics,
 		tasksToContainers:            make(map[string]map[string]*StatsContainer),
 		tasksToHealthCheckContainers: make(map[string]map[string]*StatsContainer),
+		tasksToEIAs:                  make(map[string]map[string]*apitask.Association),
 		tasksToDefinitions:           make(map[string]*taskDefinition),
 		containerChangeEventStream:   containerChangeEventStream,
 	}
@@ -256,12 +283,34 @@ func (engine *DockerStatsEngine) addContainerUnsafe(dockerID string) (*StatsCont
 		watchStatsContainer = engine.addToStatsContainerMapUnsafe(task.Arn, dockerID, statsContainer, engine.containerMetricsMapUnsafe)
 	}
 
-	if dockerContainer, err := engine.resolver.ResolveContainer(dockerID); err != nil {
+	dockerContainer, err := engine.resolver.ResolveContainer(dockerID)
+	seelog.Infof("Got container event for container %+v", dockerContainer.Container)
+
+	if err != nil {
 		seelog.Debugf("Could not map container ID to container, container: %s, err: %s", dockerID, err)
 	} else if dockerContainer.Container.HealthStatusShouldBeReported() {
 		// Track the container health status
 		engine.addToStatsContainerMapUnsafe(task.Arn, dockerID, statsContainer, engine.healthCheckContainerMapUnsafe)
 		seelog.Debugf("Adding container to stats health check watch list, id: %s, task: %s", dockerID, task.Arn)
+	}
+
+	if dockerContainer.Container.Name == "healthcheck" {
+		seelog.Infof("Got container running event from health check container: %s", dockerContainer.Container.String())
+		eias, err := engine.resolver.ResolveEIAs(task.Arn, dockerID)
+		seelog.Infof("Resolved EIAs, eias: %v, err: %v", eias, err)
+
+		if err == nil {
+			_, taskExists := engine.tasksToEIAs[task.Arn]
+			if !taskExists {
+				engine.tasksToEIAs[task.Arn] = make(map[string]*apitask.Association)
+			}
+
+			for _, eia := range eias {
+				engine.tasksToEIAs[task.Arn][eia.Name] = eia
+			}
+		}
+
+		seelog.Infof("task to EIA map: %+v", engine.tasksToEIAs)
 	}
 
 	if !watchStatsContainer {
@@ -368,6 +417,9 @@ func (engine *DockerStatsEngine) GetInstanceMetrics() (*ecstcs.MetricsMetadata, 
 
 // GetTaskHealthMetrics returns the container health metrics
 func (engine *DockerStatsEngine) GetTaskHealthMetrics() (*ecstcs.HealthMetadata, []*ecstcs.TaskHealth, error) {
+	seelog.Info("In GetTaskHealthMetrics")
+	seelog.Infof("tasksToEIA map: %+v", engine.tasksToEIAs)
+
 	var taskHealths []*ecstcs.TaskHealth
 	metadata := &ecstcs.HealthMetadata{
 		Cluster:           aws.String(engine.cluster),

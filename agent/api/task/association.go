@@ -13,6 +13,12 @@
 
 package task
 
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
 // Association is a definition of a device (or other potential things) that is
 // associated with a task.
 type Association struct {
@@ -24,6 +30,33 @@ type Association struct {
 	Name string `json:"name"`
 	// Type specifies the type of this association.
 	Type string `json:"type"`
+	// Health specifies the health status of this association.
+	Health AssociationHealth `json:"health"`
+	// lock is for protecting all fields in the Association struct
+	lock sync.RWMutex
+}
+
+type AssociationHealth struct {
+	HealthStatus string `json:"status,omitempty"`
+	Since time.Time `json:"statusSince,omitempty"`
+}
+
+func (association *Association) SetAssociationHealth(healthStatus string)  {
+	association.lock.Lock()
+	defer association.lock.Unlock()
+
+	health := AssociationHealth{
+		HealthStatus: healthStatus,
+		Since: time.Now(),
+	}
+	association.Health = health
+}
+
+func (association *Association) String() string {
+	association.lock.RLock()
+	defer association.lock.RUnlock()
+
+	return fmt.Sprintf("Association name: %s, type: %s, health: %v", association.Name, association.Type, association.Health)
 }
 
 // EncodedString is used to describe an association, the consumer of the association

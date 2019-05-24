@@ -50,6 +50,9 @@ const (
 	// RequestTypeContainerAssociation specifies the container association request type of ContainerAssociationHandler.
 	RequestTypeContainerAssociation = "container association"
 
+	// RequestTypeContainerAssociationHealth specifies the request type of ContainerAssociationHealthHandler.
+	RequestTypeContainerAssociationHealth = "container association health"
+
 	// AnythingButSlashRegEx is a regex pattern that matches any string without slash.
 	AnythingButSlashRegEx = "[^/]*"
 

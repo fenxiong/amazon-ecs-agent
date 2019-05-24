@@ -14,6 +14,7 @@
 package handlers
 
 import (
+	"github.com/aws/amazon-ecs-agent/agent/statemanager"
 	"net/http"
 	"strconv"
 	"time"
@@ -47,6 +48,7 @@ const (
 func taskServerSetup(credentialsManager credentials.Manager,
 	auditLogger audit.AuditLogger,
 	state dockerstate.TaskEngineState,
+	stateSaver statemanager.Saver,
 	ecsClient api.ECSClient,
 	cluster string,
 	statsEngine stats.Engine,
@@ -65,7 +67,7 @@ func taskServerSetup(credentialsManager credentials.Manager,
 
 	v2HandlersSetup(muxRouter, state, ecsClient, statsEngine, cluster, credentialsManager, auditLogger, availabilityZone, containerInstanceArn)
 
-	v3HandlersSetup(muxRouter, state, ecsClient, statsEngine, cluster, availabilityZone, containerInstanceArn)
+	v3HandlersSetup(muxRouter, state, stateSaver, ecsClient, statsEngine, cluster, availabilityZone, containerInstanceArn)
 
 	limiter := tollbooth.NewLimiter(int64(steadyStateRate), nil)
 	limiter.SetOnLimitReached(handlersutils.LimitReachedHandler(auditLogger))
@@ -115,6 +117,7 @@ func v2HandlersSetup(muxRouter *mux.Router,
 // v3HandlersSetup adds all handlers in v3 package to the mux router.
 func v3HandlersSetup(muxRouter *mux.Router,
 	state dockerstate.TaskEngineState,
+	stateSaver statemanager.Saver,
 	ecsClient api.ECSClient,
 	statsEngine stats.Engine,
 	cluster string,
@@ -128,12 +131,14 @@ func v3HandlersSetup(muxRouter *mux.Router,
 	muxRouter.HandleFunc(v3.ContainerAssociationsPath, v3.ContainerAssociationsHandler(state))
 	muxRouter.HandleFunc(v3.ContainerAssociationPathWithSlash, v3.ContainerAssociationHandler(state))
 	muxRouter.HandleFunc(v3.ContainerAssociationPath, v3.ContainerAssociationHandler(state))
+	muxRouter.HandleFunc(v3.ContainerAssociationHealthPath, v3.ContainerAssociationHealthHandler(state, stateSaver))
 }
 
 // ServeTaskHTTPEndpoint serves task/container metadata, task/container stats, and IAM Role Credentials
 // for tasks being managed by the agent.
 func ServeTaskHTTPEndpoint(credentialsManager credentials.Manager,
 	state dockerstate.TaskEngineState,
+	stateSaver statemanager.Saver,
 	ecsClient api.ECSClient,
 	containerInstanceArn string,
 	cfg *config.Config,
@@ -150,7 +155,7 @@ func ServeTaskHTTPEndpoint(credentialsManager credentials.Manager,
 
 	auditLogger := audit.NewAuditLog(containerInstanceArn, cfg, logger)
 
-	server := taskServerSetup(credentialsManager, auditLogger, state, ecsClient, cfg.Cluster, statsEngine,
+	server := taskServerSetup(credentialsManager, auditLogger, state, stateSaver, ecsClient, cfg.Cluster, statsEngine,
 		cfg.TaskMetadataSteadyStateRate, cfg.TaskMetadataBurstRate, availabilityZone, containerInstanceArn)
 
 	for {
