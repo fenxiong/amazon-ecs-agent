@@ -801,7 +801,7 @@ func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 
 	defer agent.Cleanup()
 
-	agent.RequireVersion(">=1.27.1")
+	agent.RequireVersion(">=1.27.0")
 
 	roleArn := os.Getenv("TASK_IAM_ROLE_ARN")
 	if utils.ZeroOrNil(roleArn) {
