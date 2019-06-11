@@ -221,6 +221,7 @@ func (agent *TestAgent) StartMultipleTasks(t *testing.T, taskDefinition string, 
 		return nil, err
 	}
 	if len(resp.Failures) != 0 || len(resp.Tasks) == 0 {
+		fmt.Printf("Failures: %+v\n", resp.Failures)
 		return nil, errors.New("Failure starting task: " + *resp.Failures[0].Reason)
 	}
 

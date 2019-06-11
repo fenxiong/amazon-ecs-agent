@@ -1,0 +1,391 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "app",
+      "image": "amazonlinux:2",
+      "cpu": 128,
+      "memory": 512,
+      "links": [
+        "envoy",
+        "fluentd"
+      ],
+      "command": ["sh", "-c", "exit 42"],
+      "essential": true,
+      "environment": [
+        {
+          "name": "ENV1",
+          "value": "val"
+        },
+        {
+          "name": "ENV2",
+          "value": "val"
+        },
+        {
+          "name": "ENV3",
+          "value": "val"
+        },
+        {
+          "name": "ENV4",
+          "value": "val"
+        },
+        {
+          "name": "ENV5",
+          "value": "val"
+        },
+        {
+          "name": "ENV6",
+          "value": "val"
+        },
+        {
+          "name": "ENV7",
+          "value": "val"
+        },
+        {
+          "name": "ENV8",
+          "value": "val"
+        },
+        {
+          "name": "ENV9",
+          "value": "val"
+        },
+        {
+          "name": "ENV10",
+          "value": "val"
+        },
+        {
+          "name": "ENV11",
+          "value": "val"
+        },
+        {
+          "name": "ENV12",
+          "value": "val"
+        },
+        {
+          "name": "ENV13",
+          "value": "val"
+        },
+        {
+          "name": "ENV14",
+          "value": "val"
+        },
+        {
+          "name": "ENV15",
+          "value": "val"
+        },
+        {
+          "name": "ENV16",
+          "value": "val"
+        },
+        {
+          "name": "ENV17",
+          "value": "val"
+        },
+        {
+          "name": "ENV18",
+          "value": "val"
+        },
+        {
+          "name": "ENV19",
+          "value": "val"
+        },
+        {
+          "name": "ENV20",
+          "value": "val"
+        },
+        {
+          "name": "ENV21",
+          "value": "val"
+        },
+        {
+          "name": "ENV22",
+          "value": "val"
+        },
+        {
+          "name": "ENV23",
+          "value": "val"
+        },
+        {
+          "name": "ENV24",
+          "value": "val"
+        },
+        {
+          "name": "ENV25",
+          "value": "val"
+        },
+        {
+          "name": "ENV26",
+          "value": "val"
+        },
+        {
+          "name": "ENV27",
+          "value": "val"
+        },
+        {
+          "name": "ENV28",
+          "value": "val"
+        },
+        {
+          "name": "ENV29",
+          "value": "val"
+        },
+        {
+          "name": "ENV30",
+          "value": "val"
+        },
+        {
+          "name": "ENV31",
+          "value": "val"
+        },
+        {
+          "name": "ENV32",
+          "value": "val"
+        },
+        {
+          "name": "ENV33",
+          "value": "val"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "parameter0",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter0"
+        },
+        {
+          "name": "parameter1",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter1"
+        },
+        {
+          "name": "parameter2",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter2"
+        },
+        {
+          "name": "parameter3",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter3"
+        },
+        {
+          "name": "parameter4",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter4"
+        },
+        {
+          "name": "parameter5",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter5"
+        },
+        {
+          "name": "parameter6",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter6"
+        },
+        {
+          "name": "parameter7",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter7"
+        },
+        {
+          "name": "parameter8",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter8"
+        },
+        {
+          "name": "parameter9",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter9"
+        },
+        {
+          "name": "parameter10",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter10"
+        },
+        {
+          "name": "parameter11",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter11"
+        },
+        {
+          "name": "parameter12",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter12"
+        },
+        {
+          "name": "parameter13",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter13"
+        },
+        {
+          "name": "parameter14",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter14"
+        },
+        {
+          "name": "parameter15",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter15"
+        },
+        {
+          "name": "parameter16",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter16"
+        },
+        {
+          "name": "parameter17",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter17"
+        },
+        {
+          "name": "parameter18",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter18"
+        },
+        {
+          "name": "parameter19",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter19"
+        }
+      ],
+      "privileged": false,
+      "dockerLabels": {
+        "cc.dummy.dummy.version": "2.8.0"
+      }
+    },
+    {
+      "name": "consul-register",
+      "image": "amazonlinux:latest",
+      "cpu": 16,
+      "memory": 64,
+      "essential": false,
+      "command": ["sh", "-c", "sleep 5"],
+      "environment": [
+        {
+          "name": "ENV1",
+          "value": "val"
+        },
+        {
+          "name": "ENV2",
+          "value": "val"
+        },
+        {
+          "name": "ENV3",
+          "value": "val"
+        },
+        {
+          "name": "ENV4",
+          "value": "val"
+        },
+        {
+          "name": "ENV5",
+          "value": "val"
+        },
+        {
+          "name": "ENV6",
+          "value": "val"
+        },
+        {
+          "name": "ENV7",
+          "value": "val"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "parameter20",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter20"
+        },
+        {
+          "name": "parameter21",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter21"
+        }
+      ],
+      "privileged": false,
+      "dockerLabels": {
+        "cc.dummy.dummy.version": "2.8.0"
+      }
+    },
+    {
+      "name": "envoy",
+      "image": "ubuntu:latest",
+      "cpu": 64,
+      "memory": 128,
+      "essential": false,
+      "command": ["sh", "-c", "sleep 5"],
+      "environment": [
+        {
+          "name": "ENV1",
+          "value": "val"
+        }
+      ],
+      "privileged": false,
+      "dockerLabels": {
+        "cc.dummy.dummy.version": "2.8.0"
+      }
+    },
+    {
+      "name": "fluentd",
+      "image": "amazonlinux:latest",
+      "command": ["sh", "-c", "sleep 5"],
+      "cpu": 64,
+      "memory": 128,
+      "essential": false,
+      "environment": [
+        {
+          "name": "ENV1",
+          "value": "val"
+        },
+        {
+          "name": "ENV2",
+          "value": "val"
+        },
+        {
+          "name": "ENV3",
+          "value": "val"
+        }
+      ],
+      "mountPoints": [
+        {
+          "sourceVolume": "td-agent",
+          "containerPath": "/tmp",
+          "readOnly": false
+        }
+      ],
+      "privileged": false,
+      "dockerLabels": {
+        "cc.dummy.dummy.version": "2.8.0"
+      }
+    },
+    {
+      "name": "front",
+      "image": "amazonlinux:2",
+      "command": ["sh", "-c", "sleep 5"],
+      "cpu": 64,
+      "memory": 32,
+      "links": [
+        "app:backend"
+      ],
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 0,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": false,
+      "environment": [
+        {
+          "name": "ENV1",
+          "value": "val"
+        },
+        {
+          "name": "ENV2",
+          "value": "val"
+        },
+        {
+          "name": "ENV3",
+          "value": "val"
+        }
+      ],
+      "privileged": false,
+      "dockerLabels": {
+        "dummy.dummy.hash": "abc",
+        "cc.dummy.dummy.version": "2.8.0",
+        "dummy.dummy.dummy-read-timeout": "60s"
+      }
+    }
+  ],
+  "family": "test-cp",
+  "taskRoleArn": "arn:aws:iam::897977802564:role/github-fenxiong-amazon-ECSAgentTaskIAMRoleFunct-9K5Y6PTWGP4R",
+  "executionRoleArn": "arn:aws:iam::897977802564:role/github-fenxiong-amazon-ECSAgentTaskIAMRoleFunct-9K5Y6PTWGP4R",
+  "volumes": [
+    {
+      "name": "td-agent",
+      "host": {
+        "sourcePath": "/var/lib/ecs"
+      }
+    }
+  ],
+  "compatibilities": [
+    "EC2"
+  ]
+}

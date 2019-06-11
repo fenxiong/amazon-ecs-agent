@@ -1,0 +1,179 @@
+{
+  "family": "test-concurrent",
+  "executionRoleArn": "arn:aws:iam::897977802564:role/github-fenxiong-amazon-ECSAgentTaskIAMRoleFunct-9K5Y6PTWGP4R",
+  "containerDefinitions": [
+    {
+      "name": "container",
+      "image": "busybox:latest",
+      "cpu": 100,
+      "memory": 100,
+      "command": ["sh", "-c", "exit 42"],
+      "secrets": [
+        {
+          "name": "parameter0",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter0"
+        },
+        {
+          "name": "parameter1",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter1"
+        },
+        {
+          "name": "parameter2",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter2"
+        },
+        {
+          "name": "parameter3",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter3"
+        },
+        {
+          "name": "parameter4",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter4"
+        },
+        {
+          "name": "parameter5",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter5"
+        },
+        {
+          "name": "parameter6",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter6"
+        },
+        {
+          "name": "parameter7",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter7"
+        },
+        {
+          "name": "parameter8",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter8"
+        },
+        {
+          "name": "parameter9",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter9"
+        },
+        {
+          "name": "parameter10",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter10"
+        },
+        {
+          "name": "parameter11",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter11"
+        },
+        {
+          "name": "parameter12",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter12"
+        },
+        {
+          "name": "parameter13",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter13"
+        },
+        {
+          "name": "parameter14",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter14"
+        },
+        {
+          "name": "parameter15",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter15"
+        },
+        {
+          "name": "parameter16",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter16"
+        },
+        {
+          "name": "parameter17",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter17"
+        },
+        {
+          "name": "parameter18",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter18"
+        },
+        {
+          "name": "parameter19",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter19"
+        },
+        {
+          "name": "parameter20",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter20"
+        },
+        {
+          "name": "parameter21",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter21"
+        },
+        {
+          "name": "parameter22",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter22"
+        },
+        {
+          "name": "parameter23",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter23"
+        },
+        {
+          "name": "parameter24",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter24"
+        },
+        {
+          "name": "parameter25",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter25"
+        },
+        {
+          "name": "parameter26",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter26"
+        },
+        {
+          "name": "parameter27",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter27"
+        },
+        {
+          "name": "parameter28",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter28"
+        },
+        {
+          "name": "parameter29",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter29"
+        },
+        {
+          "name": "parameter30",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter30"
+        },
+        {
+          "name": "parameter31",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter31"
+        },
+        {
+          "name": "parameter32",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter32"
+        },
+        {
+          "name": "parameter33",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter33"
+        },
+        {
+          "name": "parameter34",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter34"
+        },
+        {
+          "name": "parameter35",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter35"
+        },
+        {
+          "name": "parameter36",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter36"
+        },
+        {
+          "name": "parameter37",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter37"
+        },
+        {
+          "name": "parameter38",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter38"
+        },
+        {
+          "name": "parameter39",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter39"
+        },
+        {
+          "name": "parameter40",
+          "valueFrom": "arn:aws:ssm:us-west-2:897977802564:parameter/test-concurrent-arameter40"
+        }
+      ]
+    }
+  ]
+}

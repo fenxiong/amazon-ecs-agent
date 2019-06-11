@@ -59,6 +59,124 @@ const (
 
 var trunkingInstancePrefixes = []string{"c5.", "m5."}
 
+func createSSMParameter(name, value string, t *testing.T) {
+	region := *ECS.Config.Region
+	ssmClient := ssm.New(session.New(), aws.NewConfig().WithRegion(region))
+	input := &ssm.PutParameterInput{
+		Name:        aws.String(name),
+		Value:       aws.String(value),
+		Type:        aws.String("String"),
+	}
+
+	// create parameter in parameter store if it does not exist
+	_, err := ssmClient.PutParameter(input)
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok {
+			switch aerr.Code() {
+			case ssm.ErrCodeParameterAlreadyExists:
+				t.Logf("Parameter %v already exists in SSM Parameter Store", name)
+				break
+			default:
+				require.NoError(t, err, "SSM PutParameter call failed")
+			}
+		}
+	} else {
+		t.Logf("Created ssm parameter %s, value %s", name, value)
+	}
+}
+
+func TestCreateSecrets(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		name := fmt.Sprintf("test-concurrent-arameter%d", i)
+		value := "dummy"
+		createSSMParameter(name, value, t)
+	}
+}
+
+func TestRunCPTasks(t *testing.T) {
+	agentOptions := AgentOptions{
+		ExtraEnvironment: map[string]string{
+			"ECS_ENABLE_TASK_IAM_ROLE":              "true",
+			"ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST": "true",
+		},
+	}
+	agent := RunAgent(t, &agentOptions)
+	defer agent.Cleanup()
+
+	td, err := GetTaskDefinition("test-cp")
+	require.NoError(t, err, "Register task definition failed")
+
+	numToRun := 20
+	tasks := make([]*TestTask, numToRun)
+
+	for numRun := 0; numRun < numToRun; numRun++ {
+		task, err := agent.StartMultipleTasks(t, td, 1)
+		require.NoError(t, err, "Unable to start task: %v", err)
+
+		if err != nil {
+			continue
+		}
+		tasks[numRun] = task[0]
+	}
+
+	t.Logf("Ran %v containers;", numToRun)
+
+	for _, task := range tasks {
+		err := task.WaitStopped(2 * time.Minute)
+		assert.NoError(t, err)
+		code, ok := task.ContainerExitcode("app")
+		assert.True(t, ok, "Get exit code failed")
+		assert.Equal(t, 42, code, "Wrong exit code")
+	}
+}
+
+func TestRunManySecretTasks(t *testing.T) {
+	agent := RunAgent(t, nil)
+	defer agent.Cleanup()
+
+	//numToRun := 200
+	//tasks := []*TestTask{}
+	//attemptsTaken := 0
+
+	td, err := GetTaskDefinition("test-concurrent")
+	require.NoError(t, err, "Register task definition failed")
+	//for numRun := 0; len(tasks) < numToRun; attemptsTaken++ {
+	//	startNum := 10
+	//	if numToRun-len(tasks) < 10 {
+	//		startNum = numToRun - len(tasks)
+	//	}
+	//
+	//	startedTasks, err := agent.StartMultipleTasks(t, td, startNum)
+	//	if err != nil {
+	//		continue
+	//	}
+	//	tasks = append(tasks, startedTasks...)
+	//	numRun += 10
+	//}
+	numToRun := 30
+	tasks := make([]*TestTask, numToRun)
+
+	for numRun := 0; numRun < numToRun; numRun++ {
+		task, err := agent.StartMultipleTasks(t, td, 1)
+		require.NoError(t, err, "Unable to start task")
+
+		if err != nil {
+			continue
+		}
+		tasks[numRun] = task[0]
+	}
+
+	t.Logf("Ran %v containers;", numToRun)
+
+	for _, task := range tasks {
+		err := task.WaitStopped(10 * time.Minute)
+		assert.NoError(t, err)
+		code, ok := task.ContainerExitcode("container")
+		assert.True(t, ok, "Get exit code failed")
+		assert.Equal(t, 42, code, "Wrong exit code")
+	}
+}
+
 // TestRunManyTasks runs several tasks in short succession and expects them to
 // all run.
 func TestRunManyTasks(t *testing.T) {
