@@ -263,6 +263,8 @@ func (client *cniClient) del(ctx context.Context, runtimeConfig libcni.RuntimeCo
 	if err != nil {
 		return err
 	}
+	seelog.Infof("In del, Network config: %+v", networkConfig.Network)
+	seelog.Infof("Bytes: %s", string(networkConfig.Bytes))
 	runtimeConfig.IfName = deviceName
 
 	return client.libcni.DelNetwork(ctx, networkConfig, &runtimeConfig)
@@ -397,6 +399,7 @@ func (client *cniClient) createBranchENINetworkConfig(cfg *Config) (string, *lib
 
 // createIPAMNetworkConfig constructs the ipam configuration accepted by libcni
 func (client *cniClient) createIPAMNetworkConfig(cfg *Config) (string, *libcni.NetworkConfig, error) {
+	seelog.Infof("In createIPAMNetworkConfig, cfg: %+v", cfg)
 	ipamConfig, err := client.createIPAMConfig(cfg)
 	if err != nil {
 		return defaultVethName, nil, errors.Wrap(err, "createIPAMNetworkConfig: create ipam network configuration failed")
@@ -404,6 +407,7 @@ func (client *cniClient) createIPAMNetworkConfig(cfg *Config) (string, *libcni.N
 
 	ipamNetworkConfig := IPAMNetworkConfig{
 		Name:       ECSIPAMPluginName,
+		Type:       ECSIPAMPluginName,
 		CNIVersion: client.cniVersion,
 		IPAM:       ipamConfig,
 	}
