@@ -43,6 +43,9 @@ import (
 	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	docker "github.com/docker/docker/client"
+	"github.com/docker/libkv"
+	"github.com/docker/libkv/store"
+	"github.com/docker/libkv/store/boltdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -835,6 +838,57 @@ func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 		exitCode, ok := task.ContainerExitcode("eni-trunking-validator")
 		assert.True(t, ok, "Get exit code failed")
 		assert.Equal(t, 42, exitCode, fmt.Sprintf("Expected exit code of 42; got %d", exitCode))
+	}
+}
+
+func TestAWSVPCTaskIPAddressManagement(t *testing.T) {
+	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+	agent := RunAgent(t, &AgentOptions{
+		EnableTaskENI: true,
+	})
+
+	defer agent.Cleanup()
+
+	// TODO: change to the version after 1.29.0 (i.e. 1.29.1 or 1.30.0)
+	agent.RequireVersion(">=1.28.1")
+
+	// Start task with network mode set to 'awsvpc'
+	task, err := agent.StartAWSVPCTask(awsvpcTaskDefinition, nil)
+	require.NoError(t, err)
+	defer func() {
+		err := task.Stop()
+		require.NoError(t, err)
+
+		err = task.WaitStopped(waitTaskStateChangeDuration)
+		require.NoError(t, err)
+	}()
+
+	// Wait for task to be running
+	err = task.WaitRunning(waitTaskStateChangeDuration)
+	require.NoError(t, err)
+
+	boltdb.Register()
+
+	db := filepath.Join(agent.TestDir, "data/eni-ipam.db")
+	bucket := "IPAM"
+	t.Logf("db: %s\n", db)
+
+	kv, err := libkv.NewStore(
+		store.BOLTDB,
+		[]string{db},
+		&store.Config{
+			Bucket:            bucket,
+			ConnectionTimeout: 10 * time.Second,
+		},
+	)
+	if err != nil {
+		fmt.Printf("Creating db failed: %v\n", err)
+	}
+
+	entries, err := kv.List("1")
+	t.Logf("list err: %v", err)
+	for _, pair := range entries {
+		t.Logf("key=%v - value=%v\n", pair.Key, string(pair.Value))
 	}
 }
 

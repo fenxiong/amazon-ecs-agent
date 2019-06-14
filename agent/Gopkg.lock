@@ -68,6 +68,14 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:0f98f59e9a2f4070d66f0c9c39561f68fcd1dc837b22a852d28d0003aebd1b1e"
+  name = "github.com/boltdb/bolt"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2f1ce7a837dcb8da3ec595b1dac9d0632f0f99e8"
+  version = "v1.3.1"
+
+[[projects]]
   digest = "1:50e893a85575fa48dc4982a279e50e2fd8b74e4f7c587860c1e25c77083b8125"
   name = "github.com/cihub/seelog"
   packages = ["."]
@@ -204,6 +212,18 @@
   pruneopts = "UT"
   revision = "0dadbb0345b35ec7ef35e228dabb8de89a65bf52"
   version = "v0.3.2"
+
+[[projects]]
+  digest = "1:72504ef3cc17866d90b72786140a484bd7a930a8e4f32752b03e48612cedcffd"
+  name = "github.com/docker/libkv"
+  packages = [
+    ".",
+    "store",
+    "store/boltdb",
+  ]
+  pruneopts = "UT"
+  revision = "aabc039ad04deb721e234f99cd1b4aa28ac71a40"
+  version = "v0.2.1"
 
 [[projects]]
   digest = "1:57fa4c058c21ce25d0b7272518dd746065117abf6cc706158b0d361202024520"
@@ -524,6 +544,7 @@
     "github.com/docker/docker/pkg/system",
     "github.com/docker/go-connections/nat",
     "github.com/docker/go-units",
+    "github.com/docker/libkv/store/boltdb",
     "github.com/golang/mock/gomock",
     "github.com/golang/mock/mockgen/model",
     "github.com/gorilla/mux",
@@ -538,6 +559,7 @@
     "github.com/stretchr/testify/require",
     "github.com/stretchr/testify/suite",
     "github.com/vishvananda/netlink",
+    "golang.org/x/net/context",
     "golang.org/x/sys/windows",
     "golang.org/x/sys/windows/registry",
     "golang.org/x/sys/windows/svc",
