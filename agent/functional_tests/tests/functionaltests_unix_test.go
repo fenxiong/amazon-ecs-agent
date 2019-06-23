@@ -814,7 +814,7 @@ func TestRunAWSVPCTaskWithENITrunkingEndPointValidation(t *testing.T) {
 	tdOverrides["$$$TASK_ROLE$$$"] = roleArn
 	tdOverrides["$$$TEST_REGION$$$"] = *ECS.Config.Region
 
-	numToRun := 5
+	numToRun := 100
 	tasks := make([]*TestTask, numToRun)
 
 	for numRun := 0; numRun < numToRun; numRun++ {
