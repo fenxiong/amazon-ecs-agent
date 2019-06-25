@@ -16,8 +16,10 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -927,6 +929,46 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 			seelog.Warnf("Task engine [%s]: unable to create metadata for container %s: %v",
 				task.Arn, container.Name, mderr)
 		}
+	}
+
+	fields := strings.Split(task.Arn, "/")
+	taskID := fields[len(fields)-1]
+	if container.Name == "logrouter" {
+		seelog.Infof("Creating log router container %s", container.Name)
+		fluentConfigBind := fmt.Sprintf("%s/data/logrouter/%s/config/fluent.conf:/fluentd/etc/fluent.conf", engine.cfg.DataDirOnHost, taskID)
+		seelog.Infof("Adding config bind %s for log router container", fluentConfigBind)
+		hostConfig.Binds = append(hostConfig.Binds, fluentConfigBind)
+
+		socketDirBind := fmt.Sprintf("%s/data/logrouter/%s/socket:/var/run", engine.cfg.DataDirOnHost, taskID)
+		seelog.Infof("Adding socket directory bind %s for log router container", socketDirBind)
+		hostConfig.Binds = append(hostConfig.Binds, socketDirBind)
+	} else if container.Name == "logrouterbit" {
+		seelog.Infof("Creating log router container %s", container.Name)
+		fluentConfigBind := fmt.Sprintf("%s/data/logrouter/%s/config/fluent.conf:/fluent-bit/etc/fluent-bit.conf", engine.cfg.DataDirOnHost, taskID)
+		seelog.Infof("Adding config bind %s for log router container", fluentConfigBind)
+		hostConfig.Binds = append(hostConfig.Binds, fluentConfigBind)
+
+		socketDirBind := fmt.Sprintf("%s/data/logrouter/%s/socket:/var/run", engine.cfg.DataDirOnHost, taskID)
+		seelog.Infof("Adding socket directory bind %s for log router container", socketDirBind)
+		hostConfig.Binds = append(hostConfig.Binds, socketDirBind)
+	}
+
+	if container.Name == "logsender" {
+		seelog.Infof("Creating log sender container %s", container.Name)
+		hostConfig.LogConfig.Type = "fluentd"
+		options := make(map[string]string)
+		options["tag"] = fmt.Sprintf("%s-%s", container.Name, taskID)
+		options["fluentd-address"] = fmt.Sprintf("unix://%s/data/logrouter/%s/socket/fluent.sock", engine.cfg.DataDirOnHost, taskID)
+		hostConfig.LogConfig.Config = options
+		seelog.Infof("Specifying log config of log sender container as: %+v", hostConfig.LogConfig)
+	} else if container.Name == "logsenderbit" {
+		seelog.Infof("Creating log sender container %s", container.Name)
+		hostConfig.LogConfig.Type = "fluentd"
+		options := make(map[string]string)
+		options["tag"] = fmt.Sprintf("%s-%s", container.Name, taskID)
+		options["fluentd-address"] = fmt.Sprintf("unix://%s/data/logrouter/%s/socket/fluent.sock", engine.cfg.DataDirOnHost, taskID)
+		hostConfig.LogConfig.Config = options
+		seelog.Infof("Specifying log config of log sender container as: %+v", hostConfig.LogConfig)
 	}
 
 	createContainerBegin := time.Now()

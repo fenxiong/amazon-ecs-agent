@@ -39,6 +39,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/asmauth"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/asmsecret"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource/logrouter"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/ssmsecret"
 	resourcestatus "github.com/aws/amazon-ecs-agent/agent/taskresource/status"
 	resourcetype "github.com/aws/amazon-ecs-agent/agent/taskresource/types"
@@ -279,6 +280,10 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 
 	if task.requiresASMSecret() {
 		task.initializeASMSecretResource(credentialsManager, resourceFields)
+	}
+
+	if task.requireLogRouterResource() {
+		task.initializeLogRouterResource(cfg, resourceFields)
 	}
 
 	err = task.initializeDockerLocalVolumes(dockerClient, ctx)
@@ -707,6 +712,53 @@ func (task *Task) getAllASMSecretRequirements() map[string]apicontainer.Secret {
 		}
 	}
 	return reqs
+}
+
+func (task *Task) requireLogRouterResource() bool {
+	return true
+}
+
+func (task *Task) initializeLogRouterResource(cfg *config.Config, resourceFields *taskresource.ResourceFields) {
+	seelog.Infof("Initializing log router resource for task: %s", task.Arn)
+
+	for _, container := range task.Containers {
+		logRouterResource := task.getLogRouterResource(container.Name, cfg, resourceFields)
+		if logRouterResource == nil {
+			continue
+		}
+
+		seelog.Infof("Created log router resource for container %s: %+v", container.Name, logRouterResource)
+
+		task.AddResource(logrouter.ResourceName, logRouterResource)
+
+		container.BuildResourceDependency(logRouterResource.GetName(),
+			resourcestatus.ResourceStatus(logrouter.LogRouterCreated),
+			apicontainerstatus.ContainerCreated)
+	}
+}
+
+func (task *Task) getLogRouterResource(containerName string, cfg *config.Config, resourceFields *taskresource.ResourceFields) *logrouter.LogRouterResource {
+	if containerName == "logrouter" {
+		testFluentdOptions := map[string]string{
+			"exclude-pattern": "failure",
+			"@type":           "stdout",
+		}
+		return logrouter.NewLogRouterResource(cfg.Cluster, task.Arn, task.Family+":"+task.Version,
+			resourceFields.EC2InstanceID, cfg.DataDir, logrouter.LogRouterTypeFluentd, true, map[string]map[string]string{
+				"logsender": testFluentdOptions,
+			})
+	} else if containerName == "logrouterbit" {
+		testFluentbitOptions := map[string]string{
+			"exclude-pattern": "failure",
+			"Name":            "stdout",
+		}
+		return logrouter.NewLogRouterResource(cfg.Cluster, task.Arn, task.Family+":"+task.Version,
+			resourceFields.EC2InstanceID, cfg.DataDir, logrouter.LogRouterTypeFluentbit, true, map[string]map[string]string{
+				"logsenderbit": testFluentbitOptions,
+			})
+	}
+
+	return nil
 }
 
 // BuildCNIConfig constructs the cni configuration from eni
