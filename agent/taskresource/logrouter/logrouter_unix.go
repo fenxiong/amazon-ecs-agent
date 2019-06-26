@@ -43,7 +43,7 @@ const (
 
 // LogRouterResource models fluentd/fluentbit log router related resources as a task resource.
 type LogRouterResource struct {
-	// Fields that are specific to log router resource.
+	// Fields that are specific to log router resource. They are only set at initialization so are not protected by lock.
 	cluster               string
 	taskARN               string
 	taskDefinition        string
@@ -55,7 +55,7 @@ type LogRouterResource struct {
 	os                    oswrapper.OS
 	ioutil                ioutilwrapper.IOUtil
 
-	// Fields for the common functionality of task resource.
+	// Fields for the common functionality of task resource. Access to these fields are protected by lock.
 	createdAtUnsafe     time.Time
 	desiredStatusUnsafe resourcestatus.ResourceStatus
 	knownStatusUnsafe   resourcestatus.ResourceStatus
@@ -87,6 +87,41 @@ func NewLogRouterResource(cluster, taskARN, taskDefinition, ec2InstanceID, dataD
 
 	logRouterResource.initStatusToTransition()
 	return logRouterResource
+}
+
+// GetCluster returns the cluster
+func (logRouter *LogRouterResource) GetCluster() string {
+	return logRouter.cluster
+}
+
+// GetTaskARN returns the task arn
+func (logRouter *LogRouterResource) GetTaskARN() string {
+	return logRouter.taskARN
+}
+
+// GetTaskDefinition returns the task definition
+func (logRouter *LogRouterResource) GetTaskDefinition() string {
+	return logRouter.taskDefinition
+}
+
+// GetEC2InstanceID returns the ec2 instance id
+func (logRouter *LogRouterResource) GetEC2InstanceID() string {
+	return logRouter.ec2InstanceID
+}
+
+// GetResourceDir returns the resource dir
+func (logRouter *LogRouterResource) GetResourceDir() string {
+	return logRouter.resourceDir
+}
+
+// GetECSMetadataEnabled returns whether ecs metadata is enabled
+func (logRouter *LogRouterResource) GetECSMetadataEnabled() bool {
+	return logRouter.ecsMetadataEnabled
+}
+
+// GetContainerToLogOptions returns a map of containers' log options
+func (logRouter *LogRouterResource) GetContainerToLogOptions() map[string]map[string]string {
+	return logRouter.containerToLogOptions
 }
 
 // Initialize initializes the resource.
