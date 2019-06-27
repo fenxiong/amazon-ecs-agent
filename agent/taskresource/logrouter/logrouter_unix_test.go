@@ -114,7 +114,7 @@ func TestCreateLogRouterResourceInvalidType(t *testing.T) {
 	logRouterResource.logRouterType = "invalid"
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceCreateConfigDirError(t *testing.T) {
@@ -128,7 +128,7 @@ func TestCreateLogRouterResourceCreateConfigDirError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceCreateSocketDirError(t *testing.T) {
@@ -143,7 +143,7 @@ func TestCreateLogRouterResourceCreateSocketDirError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceGenerateConfigError(t *testing.T) {
@@ -161,7 +161,7 @@ func TestCreateLogRouterResourceGenerateConfigError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceCreateTempFileError(t *testing.T) {
@@ -177,7 +177,7 @@ func TestCreateLogRouterResourceCreateTempFileError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceWriteConfigFileError(t *testing.T) {
@@ -195,7 +195,7 @@ func TestCreateLogRouterResourceWriteConfigFileError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceChmodError(t *testing.T) {
@@ -214,7 +214,7 @@ func TestCreateLogRouterResourceChmodError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCreateLogRouterResourceRenameError(t *testing.T) {
@@ -236,7 +236,7 @@ func TestCreateLogRouterResourceRenameError(t *testing.T) {
 	)
 
 	assert.Error(t, logRouterResource.Create())
-	assert.NotEmpty(t, logRouterResource.terminalReason)
+	assert.NotEmpty(t, logRouterResource.terminalReasonUnsafe)
 }
 
 func TestCleanupLogRouterResource(t *testing.T) {

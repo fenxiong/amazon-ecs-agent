@@ -43,7 +43,8 @@ const (
 
 // LogRouterResource models fluentd/fluentbit log router related resources as a task resource.
 type LogRouterResource struct {
-	// Fields that are specific to log router resource.
+	// Fields that are specific to log router resource. They are initialized in NewLogRouterResource and
+	// should not be modified after that.
 	cluster               string
 	taskARN               string
 	taskDefinition        string
@@ -55,15 +56,16 @@ type LogRouterResource struct {
 	os                    oswrapper.OS
 	ioutil                ioutilwrapper.IOUtil
 
-	// Fields for the common functionality of task resource.
-	createdAtUnsafe     time.Time
-	desiredStatusUnsafe resourcestatus.ResourceStatus
-	knownStatusUnsafe   resourcestatus.ResourceStatus
-	appliedStatusUnsafe resourcestatus.ResourceStatus
-	statusToTransitions map[resourcestatus.ResourceStatus]func() error
-	terminalReason      string
-	terminalReasonOnce  sync.Once
-	lock                sync.RWMutex
+	// Fields for the common functionality of task resource. The lock should be acquired when accessing
+	// these fields.
+	createdAtUnsafe      time.Time
+	desiredStatusUnsafe  resourcestatus.ResourceStatus
+	knownStatusUnsafe    resourcestatus.ResourceStatus
+	appliedStatusUnsafe  resourcestatus.ResourceStatus
+	statusToTransitions  map[resourcestatus.ResourceStatus]func() error
+	terminalReasonUnsafe string
+	terminalReasonOnce   sync.Once
+	lock                 sync.RWMutex
 }
 
 // NewLogRouterResource returns a new LogRouterResource.
@@ -121,7 +123,7 @@ func (logRouter *LogRouterResource) DesiredTerminal() bool {
 func (logRouter *LogRouterResource) setTerminalReason(reason string) {
 	logRouter.terminalReasonOnce.Do(func() {
 		seelog.Infof("log router resource: setting terminal reason for task: [%s]", logRouter.taskARN)
-		logRouter.terminalReason = reason
+		logRouter.terminalReasonUnsafe = reason
 	})
 }
 
@@ -131,7 +133,7 @@ func (logRouter *LogRouterResource) GetTerminalReason() string {
 	logRouter.lock.RLock()
 	defer logRouter.lock.RUnlock()
 
-	return logRouter.terminalReason
+	return logRouter.terminalReasonUnsafe
 }
 
 // SetDesiredStatus safely sets the desired status of the resource.
