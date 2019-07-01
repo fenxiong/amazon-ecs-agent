@@ -250,6 +250,65 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 			container.Command = *container.Overrides.Command
 		}
 		container.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
+
+		// hardcoded log router config
+		if container.Name == "logrouterbit" { // test fluentbit
+			logRouter := &apicontainer.LogRouter{}
+			logRouter.Type = "fluentbit"
+			logRouter.EnableECSLogMetaData = true
+			container.LogRouter = logRouter
+			seelog.Infof("Setting container %s's log router type to %s", container.Name, container.LogRouter.Type)
+		} else if container.Name == "logrouter" { // test fluentd
+			logRouter := &apicontainer.LogRouter{}
+			logRouter.Type = "fluentd"
+			container.LogRouter = logRouter
+			logRouter.EnableECSLogMetaData = true
+			seelog.Infof("Setting container %s's log router type to %s", container.Name, container.LogRouter.Type)
+		}
+
+		var rawHostConfigInput dockercontainer.HostConfig
+		// hardcoded log sender config
+		if container.Name == "logsenderbit" { // test fluentbit
+			rawHostConfigInput = dockercontainer.HostConfig{
+				LogConfig: dockercontainer.LogConfig{
+					Type: "awsrouter",
+					Config: map[string]string{
+						"exclude-pattern": "failure",
+						"Name":            "stdout",
+					},
+				},
+			}
+		} else if container.Name == "logsender" { // test fluentd
+			rawHostConfigInput = dockercontainer.HostConfig{
+				LogConfig: dockercontainer.LogConfig{
+					Type: "awsrouter",
+					Config: map[string]string{
+						"exclude-pattern": "failure",
+						"@type":           "stdout",
+					},
+				},
+			}
+		} else if container.Name == "logsenderbitcw" { // test fluentbit cw
+			rawHostConfigInput = dockercontainer.HostConfig{
+				LogConfig: dockercontainer.LogConfig{
+					Type: "awsrouter",
+					Config: map[string]string{
+						"exclude-pattern":   "failure",
+						"Name":              "cloudwatch",
+						"region":            "us-west-2",
+						"log_group_name":    "test-fluentbit-cw",
+						"log_stream_name":   "test",
+						"auto_create_group": "true",
+					},
+				},
+			}
+		}
+
+		rawHostConfig, _ := json.Marshal(&rawHostConfigInput)
+		container.DockerConfig.HostConfig = func(s string) *string {
+			return &s
+		}(string(rawHostConfig))
+		seelog.Infof("Setting container %s's host config to %s", container.Name, string(rawHostConfig))
 	}
 
 	//initialize resources map for task
