@@ -1099,12 +1099,17 @@ func (task *Task) dockerConfig(container *apicontainer.Container, apiVersion doc
 		Env:          dockerEnv,
 	}
 
+	seelog.Infof("command: %+v", container.Command)
+	seelog.Infof("Container config before unmarshal: %+v", containerConfig)
+
 	if container.DockerConfig.Config != nil {
 		err := json.Unmarshal([]byte(aws.StringValue(container.DockerConfig.Config)), &containerConfig)
 		if err != nil {
 			return nil, &apierrors.DockerClientConfigError{Msg: "Unable decode given docker config: " + err.Error()}
 		}
 	}
+	seelog.Infof("Container config after unmarshal: %+v", containerConfig)
+
 	if container.HealthCheckType == apicontainer.DockerHealthCheckType && containerConfig.Healthcheck == nil {
 		return nil, &apierrors.DockerClientConfigError{
 			Msg: "docker health check is nil while container health check type is DOCKER"}
