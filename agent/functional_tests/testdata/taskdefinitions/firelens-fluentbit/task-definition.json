@@ -1,0 +1,42 @@
+{
+  "family": "ecsftest-firelens-fluentbit",
+  "networkMode": "bridge",
+  "containerDefinitions": [
+    {
+      "name": "firelens",
+      "image": "amazon/aws-for-fluent-bit:1.2.0",
+      "essential": true,
+      "memory": 256,
+      "firelensConfiguration": {
+        "type": "fluentbit",
+        "options": {
+          "enable-ecs-log-metadata": "true"
+        }
+      }
+    },
+    {
+      "name": "logsender",
+      "image": "amazonlinux:2",
+      "essential": true,
+      "memory": 256,
+      "command": ["sh", "-c", "echo pass; echo filtered"],
+      "dependsOn": [
+        {
+          "containerName": "firelens",
+          "condition": "START"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awsfirelens",
+        "options": {
+          "Name": "cloudwatch",
+          "exclude-pattern": "filtered",
+          "include-pattern": "pass",
+          "region": "$$$TEST_REGION$$$",
+          "log_group_name": "ecs-functional-tests",
+          "log_stream_prefix": "firelens-fluentbit-"
+        }
+      }
+    }
+  ]
+}
