@@ -2752,7 +2752,7 @@ func TestCreateContainerAddLogDriverConfig(t *testing.T) {
 			task:                           getTask(awslogRouterType),
 			expectedLogConfigType:          "fluentd",
 			expectedLogConfigTag:           taskName + "-" + taskID,
-			expectedLogConfigFluentAddress: filepath.Join(socketPathPrefix, defaultConfig.DataDirOnHost, dataLogDriverPath, taskID, dataLogDriverSocketPath),
+			expectedLogConfigFluentAddress: socketPathPrefix + filepath.Join(defaultConfig.DataDirOnHost, dataLogDriverPath, taskID, dataLogDriverSocketPath),
 			expectedFluentdAsyncConnect:    strconv.FormatBool(true),
 		},
 		{

@@ -4184,6 +4184,8 @@ type Container struct {
 	// The last known status of the container.
 	LastStatus *string `locationName:"lastStatus" type:"string"`
 
+	LogRouter *LogRouter `locationName:"logRouter" type:"structure"`
+
 	// The name of the container.
 	Name *string `locationName:"name" type:"string"`
 
@@ -4232,6 +4234,12 @@ func (s *Container) SetHealthStatus(v string) *Container {
 // SetLastStatus sets the LastStatus field's value.
 func (s *Container) SetLastStatus(v string) *Container {
 	s.LastStatus = &v
+	return s
+}
+
+// SetLogRouter sets the LogRouter field's value.
+func (s *Container) SetLogRouter(v *LogRouter) *Container {
+	s.LogRouter = v
 	return s
 }
 
@@ -4539,6 +4547,8 @@ type ContainerDefinition struct {
 	// in the Amazon Elastic Container Service Developer Guide.
 	LogConfiguration *LogConfiguration `locationName:"logConfiguration" type:"structure"`
 
+	LogRouter *LogRouter `locationName:"logRouter" type:"structure"`
+
 	// The hard limit (in MiB) of memory to present to the container. If your container
 	// attempts to exceed the memory specified here, the container is killed. This
 	// parameter maps to Memory in the Create a container (https://docs.docker.com/engine/reference/api/docker_remote_api_v1.27/#create-a-container)
@@ -4748,6 +4758,11 @@ func (s *ContainerDefinition) Validate() error {
 			invalidParams.AddNested("LogConfiguration", err.(request.ErrInvalidParams))
 		}
 	}
+	if s.LogRouter != nil {
+		if err := s.LogRouter.Validate(); err != nil {
+			invalidParams.AddNested("LogRouter", err.(request.ErrInvalidParams))
+		}
+	}
 	if s.RepositoryCredentials != nil {
 		if err := s.RepositoryCredentials.Validate(); err != nil {
 			invalidParams.AddNested("RepositoryCredentials", err.(request.ErrInvalidParams))
@@ -4897,6 +4912,12 @@ func (s *ContainerDefinition) SetLinuxParameters(v *LinuxParameters) *ContainerD
 // SetLogConfiguration sets the LogConfiguration field's value.
 func (s *ContainerDefinition) SetLogConfiguration(v *LogConfiguration) *ContainerDefinition {
 	s.LogConfiguration = v
+	return s
+}
+
+// SetLogRouter sets the LogRouter field's value.
+func (s *ContainerDefinition) SetLogRouter(v *LogRouter) *ContainerDefinition {
+	s.LogRouter = v
 	return s
 }
 
@@ -8448,6 +8469,111 @@ func (s *LogConfiguration) SetOptions(v map[string]*string) *LogConfiguration {
 // SetSecretOptions sets the SecretOptions field's value.
 func (s *LogConfiguration) SetSecretOptions(v []*Secret) *LogConfiguration {
 	s.SecretOptions = v
+	return s
+}
+
+type LogRouter struct {
+	_ struct{} `type:"structure"`
+
+	Config *LogRouterConfig `locationName:"config" type:"structure"`
+
+	EnableECSLogMetadata *bool `locationName:"enableECSLogMetadata" type:"boolean"`
+
+	// Type is a required field
+	Type *string `locationName:"type" type:"string" required:"true" enum:"LogRouterType"`
+}
+
+// String returns the string representation
+func (s LogRouter) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s LogRouter) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *LogRouter) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "LogRouter"}
+	if s.Type == nil {
+		invalidParams.Add(request.NewErrParamRequired("Type"))
+	}
+	if s.Config != nil {
+		if err := s.Config.Validate(); err != nil {
+			invalidParams.AddNested("Config", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetConfig sets the Config field's value.
+func (s *LogRouter) SetConfig(v *LogRouterConfig) *LogRouter {
+	s.Config = v
+	return s
+}
+
+// SetEnableECSLogMetadata sets the EnableECSLogMetadata field's value.
+func (s *LogRouter) SetEnableECSLogMetadata(v bool) *LogRouter {
+	s.EnableECSLogMetadata = &v
+	return s
+}
+
+// SetType sets the Type field's value.
+func (s *LogRouter) SetType(v string) *LogRouter {
+	s.Type = &v
+	return s
+}
+
+type LogRouterConfig struct {
+	_ struct{} `type:"structure"`
+
+	// Type is a required field
+	Type *string `locationName:"type" type:"string" required:"true" enum:"LogRouterConfigType"`
+
+	// Value is a required field
+	Value *string `locationName:"value" type:"string" required:"true"`
+}
+
+// String returns the string representation
+func (s LogRouterConfig) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s LogRouterConfig) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *LogRouterConfig) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "LogRouterConfig"}
+	if s.Type == nil {
+		invalidParams.Add(request.NewErrParamRequired("Type"))
+	}
+	if s.Value == nil {
+		invalidParams.Add(request.NewErrParamRequired("Value"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetType sets the Type field's value.
+func (s *LogRouterConfig) SetType(v string) *LogRouterConfig {
+	s.Type = &v
+	return s
+}
+
+// SetValue sets the Value field's value.
+func (s *LogRouterConfig) SetValue(v string) *LogRouterConfig {
+	s.Value = &v
 	return s
 }
 
@@ -12404,6 +12530,25 @@ const (
 
 	// LogDriverSplunk is a LogDriver enum value
 	LogDriverSplunk = "splunk"
+
+	// LogDriverAwsrouter is a LogDriver enum value
+	LogDriverAwsrouter = "awsrouter"
+)
+
+const (
+	// LogRouterConfigTypeArn is a LogRouterConfigType enum value
+	LogRouterConfigTypeArn = "arn"
+
+	// LogRouterConfigTypeFilePath is a LogRouterConfigType enum value
+	LogRouterConfigTypeFilePath = "filePath"
+)
+
+const (
+	// LogRouterTypeFluentd is a LogRouterType enum value
+	LogRouterTypeFluentd = "fluentd"
+
+	// LogRouterTypeFluentbit is a LogRouterType enum value
+	LogRouterTypeFluentbit = "fluentbit"
 )
 
 const (

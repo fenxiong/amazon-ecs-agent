@@ -728,7 +728,8 @@
         "reason":{"shape":"String"},
         "networkBindings":{"shape":"NetworkBindings"},
         "networkInterfaces":{"shape":"NetworkInterfaces"},
-        "healthStatus":{"shape":"HealthStatus"}
+        "healthStatus":{"shape":"HealthStatus"},
+        "logRouter":{"shape":"LogRouter"}
       }
     },
     "ContainerCondition":{
@@ -780,7 +781,8 @@
         "logConfiguration":{"shape":"LogConfiguration"},
         "healthCheck":{"shape":"HealthCheck"},
         "systemControls":{"shape":"SystemControls"},
-        "resourceRequirements":{"shape":"ResourceRequirements"}
+        "resourceRequirements":{"shape":"ResourceRequirements"},
+        "logRouter":{"shape": "LogRouter"}
       }
     },
     "ContainerDefinitions":{
@@ -1447,7 +1449,42 @@
         "gelf",
         "fluentd",
         "awslogs",
-        "splunk"
+        "splunk",
+        "awsrouter"
+      ]
+    },
+    "LogRouter":{
+      "type":"structure",
+      "required":["type"],
+      "members":{
+        "type":{"shape":"LogRouterType"},
+        "enableECSLogMetadata":{"shape":"BoxedBoolean"},
+        "config":{"shape":"LogRouterConfig"}
+      }
+    },
+    "LogRouterConfig":{
+      "type":"structure",
+      "required":[
+        "type",
+        "value"
+      ],
+      "members":{
+        "type":{"shape":"LogRouterConfigType"},
+        "value":{"shape":"String"}
+      }
+    },
+    "LogRouterConfigType":{
+      "type":"string",
+      "enum":[
+        "arn",
+        "filePath"
+      ]
+    },
+    "LogRouterType":{
+      "type":"string",
+      "enum":[
+        "fluentd",
+        "fluentbit"
       ]
     },
     "Long":{"type":"long"},
