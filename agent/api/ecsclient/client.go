@@ -389,6 +389,7 @@ func (client *APIECSClient) SubmitTaskStateChange(change api.TaskStateChange) er
 func (client *APIECSClient) buildContainerStateChangePayload(change api.ContainerStateChange) *ecs.ContainerStateChange {
 	statechange := &ecs.ContainerStateChange{
 		ContainerName: aws.String(change.ContainerName),
+		RuntimeID:     aws.String(change.RuntimeID),
 	}
 
 	if change.Reason != "" {
@@ -437,6 +438,7 @@ func (client *APIECSClient) SubmitContainerStateChange(change api.ContainerState
 		Cluster:       &client.config.Cluster,
 		Task:          &change.TaskArn,
 		ContainerName: &change.ContainerName,
+		RuntimeID:     &change.RuntimeID,
 	}
 	if change.Reason != "" {
 		if len(change.Reason) > ecsMaxReasonLength {

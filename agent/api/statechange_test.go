@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/stretchr/testify/assert"
@@ -82,4 +83,22 @@ func TestSetTaskTimestamps(t *testing.T) {
 	assert.Equal(t, t1.UTC().String(), change.PullStartedAt.String())
 	assert.Equal(t, t2.UTC().String(), change.PullStoppedAt.String())
 	assert.Equal(t, t3.UTC().String(), change.ExecutionStoppedAt.String())
+}
+
+func TestSetContainerRuntimeID(t *testing.T) {
+	change := &TaskStateChange{
+		Task: &apitask.Task{
+			Containers: []*apicontainer.Container{
+				{
+					RuntimeID: "asdfg",
+				},
+				{
+					RuntimeID: "qwert",
+				},
+			},
+		},
+	}
+
+	assert.Equal(t, "asdfg", change.Task.Containers[0].RuntimeID)
+	assert.Equal(t, "qwert", change.Task.Containers[1].RuntimeID)
 }
