@@ -1,4 +1,4 @@
-// +build linux,sudo
+// +build linux,sudo,integration
 
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 //
@@ -16,11 +16,23 @@
 package engine
 
 import (
+	"encoding/json"
+	"fmt"
+	"math/rand"
+
+	"github.com/stretchr/testify/require"
+
 	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
+
+	"github.com/aws/amazon-ecs-agent/agent/taskresource/logrouter"
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
@@ -32,11 +44,25 @@ import (
 	taskresourcevolume "github.com/aws/amazon-ecs-agent/agent/taskresource/volume"
 
 	"github.com/aws/amazon-ecs-agent/agent/utils/ioutilwrapper"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 )
 
 const (
-	testVolumeImage = "127.0.0.1:51670/amazon/amazon-ecs-volumes-test:latest"
+	testLogSenderImage  = "amazonlinux:2"
+	testFluentbitImage  = "amazon/aws-for-fluent-bit:latest"
+	validTaskArn        = "arn:aws:ecs:region:account-id:task/"
+	testCluster         = "testCluster"
+	testDataDir         = "testDataDir"
+	testDataDirOnHost   = "testDataDirOnHost"
+	testInstanceID      = "testInstanceID"
+	testTaskDefFamily   = "testFamily"
+	testTaskDefVersion  = "1"
+	logRouterDriverName = "awsrouter"
+	testECSRegion       = "us-east-1"
+	testLogGroupName    = "test-fluentbit"
+	testLogGroupPrefix  = "logrouter-fluentbit-"
 )
 
 func TestStartStopWithCgroup(t *testing.T) {
@@ -126,4 +152,167 @@ func createTestLocalVolumeMountTask() *apitask.Task {
 	testTask.Containers[0].TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
 	testTask.Containers[0].Command = []string{`echo -n "empty-data-volume" > /host/tmp/hello-from-container;`}
 	return testTask
+}
+
+func TestLogSenderAndLogRouterForFluentbit(t *testing.T) {
+	cfg := defaultTestConfigIntegTest()
+	cfg.DataDir = "/var/lib/ecs/data/"
+	cfg.DataDirOnHost = "/var/lib/ecs/"
+	cfg.TaskCleanupWaitDuration = 1 * time.Second
+	taskEngine, done, _ := setup(cfg, nil, t)
+	defer done()
+
+	testTask := createLogDriverAndContainersUsingLogDriverTask(t)
+	taskEngine.(*DockerTaskEngine).resourceFields = &taskresource.ResourceFields{
+		ResourceFieldsCommon: &taskresource.ResourceFieldsCommon{
+			EC2InstanceID: testInstanceID,
+		},
+	}
+	go taskEngine.AddTask(testTask)
+
+	testEvents := InitEventCollection(taskEngine)
+
+	//Verify logsender container is running
+	err := VerifyContainerStatus(apicontainerstatus.ContainerRunning, testTask.Arn+":logsender", testEvents, t)
+	assert.NoError(t, err, "Verify logsender is running")
+
+	//Verify logrouter container is running
+	err = VerifyContainerStatus(apicontainerstatus.ContainerRunning, testTask.Arn+":logrouter", testEvents, t)
+	assert.NoError(t, err, "Verify logrouter is running")
+
+	////Verify task is in running state
+	err = VerifyTaskStatus(apitaskstatus.TaskRunning, testTask.Arn, testEvents, t)
+	assert.NoError(t, err, "Not verified task running")
+
+	taskID, err := testTask.GetID()
+
+	//Manually stop logrouter container
+	cont0, ok := testTask.ContainerByName("logrouter")
+	taskEngine.(*DockerTaskEngine).stopContainer(testTask, cont0)
+
+	// declare a cloudwatch client
+	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(testECSRegion))
+	params := &cloudwatchlogs.GetLogEventsInput{
+		LogGroupName:  aws.String(testLogGroupName),
+		LogStreamName: aws.String(fmt.Sprintf("logrouter-fluentbit-logsender-%s", taskID)),
+	}
+
+	// wait for the cloud watch logs
+	resp, err := waitCloudwatchLogs(cwlClient, params)
+	require.NoError(t, err)
+	// there should only be one event as we are echoing only one thing that part of the include-filter
+	assert.Equal(t, 1, len(resp.Events))
+
+	message := aws.StringValue(resp.Events[0].Message)
+	jsonBlob := make(map[string]string)
+	err = json.Unmarshal([]byte(message), &jsonBlob)
+	require.NoError(t, err)
+	assert.Equal(t, "stdout", jsonBlob["source"])
+	assert.Equal(t, "include", jsonBlob["log"])
+	assert.Contains(t, jsonBlob, "container_id")
+	assert.Contains(t, jsonBlob["container_name"], "logsender")
+
+	//Verify logsender container is stopped
+	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":logsender", testEvents, t)
+	assert.NoError(t, err)
+
+	//Verify logrouter container is stopped
+	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":logrouter", testEvents, t)
+	assert.NoError(t, err)
+
+	//Verify the task itself has stopped
+	err = VerifyTaskStatus(apitaskstatus.TaskStopped, testTask.Arn, testEvents, t)
+	assert.NoError(t, err)
+
+	time.Sleep(cfg.TaskCleanupWaitDuration)
+	for i := 0; i < 60; i++ {
+		_, ok = taskEngine.(*DockerTaskEngine).State().TaskByArn(testTask.Arn)
+		if !ok {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	// Make sure all the resource is cleaned up
+	assert.True(t, ok)
+}
+
+func createLogDriverAndContainersUsingLogDriverTask(t *testing.T) *apitask.Task {
+	testTask := createTestTask(validTaskArn + randSeq())
+	rawHostConfigInputForLogSender := dockercontainer.HostConfig{
+		LogConfig: dockercontainer.LogConfig{
+			Type: logRouterDriverName,
+			Config: map[string]string{
+				"Name":              "cloudwatch",
+				"exclude-pattern":   "exclude",
+				"include-pattern":   "include",
+				"log_group_name":    testLogGroupName,
+				"log_stream_prefix": testLogGroupPrefix,
+				"region":            testECSRegion,
+				"auto_create_group": "true",
+			},
+		},
+	}
+	rawHostConfigForLogSender, err := json.Marshal(&rawHostConfigInputForLogSender)
+	require.NoError(t, err)
+	testTask.Containers = []*apicontainer.Container{
+		{
+			Name:      "logsender",
+			Image:     testLogSenderImage,
+			Essential: true,
+			Command:   []string{"sh", "-c", "echo exclude; echo include"},
+			DockerConfig: apicontainer.DockerConfig{
+				HostConfig: func() *string {
+					s := string(rawHostConfigForLogSender)
+					return &s
+				}(),
+			},
+			DependsOn: []apicontainer.DependsOn{
+				{
+					ContainerName: "logrouter",
+					Condition:     "START",
+				},
+			},
+		},
+		{
+			Name:  "logrouter",
+			Image: testFluentbitImage,
+			LogRouter: &apicontainer.LogRouter{
+				Type:                 logrouter.LogRouterTypeFluentbit,
+				EnableECSLogMetadata: true,
+			},
+			Environment: map[string]string{
+				"AWS_EXECUTION_ENV": "AWS_ECS_EC2",
+			},
+			TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
+		},
+	}
+	testTask.ResourcesMapUnsafe = make(map[string][]taskresource.TaskResource)
+	return testTask
+}
+
+func waitCloudwatchLogs(client *cloudwatchlogs.CloudWatchLogs, params *cloudwatchlogs.GetLogEventsInput) (*cloudwatchlogs.GetLogEventsOutput, error) {
+	// The test could fail for timing issue, so retry for 30 seconds to make this test more stable
+	for i := 0; i < 30; i++ {
+		resp, err := client.GetLogEvents(params)
+		if err != nil {
+			awsError, ok := err.(awserr.Error)
+			if !ok || awsError.Code() != "ResourceNotFoundException" {
+				return nil, err
+			}
+		} else if len(resp.Events) > 0 {
+			return resp, nil
+		}
+		time.Sleep(time.Second)
+	}
+	return nil, fmt.Errorf("Timeout waiting for the logs to be sent to cloud watch logs")
+}
+
+func randSeq() string {
+	rand.Seed(time.Now().UnixNano())
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	b := make([]rune, 15)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
