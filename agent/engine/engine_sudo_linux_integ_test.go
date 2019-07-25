@@ -18,21 +18,20 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
-
-	"github.com/stretchr/testify/require"
-
 	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
-
-	"github.com/aws/amazon-ecs-agent/agent/taskresource/logrouter"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
@@ -41,21 +40,17 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	cgroup "github.com/aws/amazon-ecs-agent/agent/taskresource/cgroup/control"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource/logrouter"
 	taskresourcevolume "github.com/aws/amazon-ecs-agent/agent/taskresource/volume"
-
 	"github.com/aws/amazon-ecs-agent/agent/utils/ioutilwrapper"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	dockercontainer "github.com/docker/docker/api/types/container"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
 	testLogSenderImage  = "amazonlinux:2"
 	testFluentbitImage  = "amazon/aws-for-fluent-bit:latest"
-	validTaskArn        = "arn:aws:ecs:region:account-id:task/"
+	validTaskArnPrefix  = "arn:aws:ecs:region:account-id:task/"
 	testCluster         = "testCluster"
-	testDataDir         = "testDataDir"
-	testDataDirOnHost   = "testDataDirOnHost"
 	testInstanceID      = "testInstanceID"
 	testTaskDefFamily   = "testFamily"
 	testTaskDefVersion  = "1"
@@ -159,10 +154,15 @@ func TestLogSenderAndLogRouterForFluentbit(t *testing.T) {
 	cfg.DataDir = "/var/lib/ecs/data/"
 	cfg.DataDirOnHost = "/var/lib/ecs/"
 	cfg.TaskCleanupWaitDuration = 1 * time.Second
+	cfg.Cluster = testCluster
 	taskEngine, done, _ := setup(cfg, nil, t)
 	defer done()
 
-	testTask := createLogDriverAndContainersUsingLogDriverTask(t)
+	taskARN := validTaskArnPrefix + uuid.New()
+	// TODO: remove when finished debugging.
+	t.Logf("Task arn: %s", taskARN)
+
+	testTask := createLogDriverAndContainersUsingLogDriverTask(t, taskARN)
 	taskEngine.(*DockerTaskEngine).resourceFields = &taskresource.ResourceFields{
 		ResourceFieldsCommon: &taskresource.ResourceFieldsCommon{
 			EC2InstanceID: testInstanceID,
@@ -180,15 +180,23 @@ func TestLogSenderAndLogRouterForFluentbit(t *testing.T) {
 	err = VerifyContainerStatus(apicontainerstatus.ContainerRunning, testTask.Arn+":logrouter", testEvents, t)
 	assert.NoError(t, err, "Verify logrouter is running")
 
-	////Verify task is in running state
+	//Verify task is in running state
 	err = VerifyTaskStatus(apitaskstatus.TaskRunning, testTask.Arn, testEvents, t)
 	assert.NoError(t, err, "Not verified task running")
 
-	taskID, err := testTask.GetID()
+	//Verify logsender container is stopped
+	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":logsender", testEvents, t)
+	assert.NoError(t, err)
 
-	//Manually stop logrouter container
-	cont0, ok := testTask.ContainerByName("logrouter")
-	taskEngine.(*DockerTaskEngine).stopContainer(testTask, cont0)
+	//Verify logrouter container is stopped
+	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":logrouter", testEvents, t)
+	assert.NoError(t, err)
+
+	//Verify the task itself has stopped
+	err = VerifyTaskStatus(apitaskstatus.TaskStopped, testTask.Arn, testEvents, t)
+	assert.NoError(t, err)
+
+	taskID, err := testTask.GetID()
 
 	// declare a cloudwatch client
 	cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(testECSRegion))
@@ -211,20 +219,13 @@ func TestLogSenderAndLogRouterForFluentbit(t *testing.T) {
 	assert.Equal(t, "include", jsonBlob["log"])
 	assert.Contains(t, jsonBlob, "container_id")
 	assert.Contains(t, jsonBlob["container_name"], "logsender")
+	assert.Equal(t, testCluster, jsonBlob["ecs_cluster"])
+	assert.Equal(t, taskARN, jsonBlob["ecs_task_arn"])
 
-	//Verify logsender container is stopped
-	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":logsender", testEvents, t)
-	assert.NoError(t, err)
-
-	//Verify logrouter container is stopped
-	err = VerifyContainerStatus(apicontainerstatus.ContainerStopped, testTask.Arn+":logrouter", testEvents, t)
-	assert.NoError(t, err)
-
-	//Verify the task itself has stopped
-	err = VerifyTaskStatus(apitaskstatus.TaskStopped, testTask.Arn, testEvents, t)
-	assert.NoError(t, err)
-
-	time.Sleep(cfg.TaskCleanupWaitDuration)
+	// Set task sent status manually so that the task can be cleaned up.
+	testTask.SetSentStatus(apitaskstatus.TaskStopped)
+	time.Sleep(3 * cfg.TaskCleanupWaitDuration)
+	var ok bool
 	for i := 0; i < 60; i++ {
 		_, ok = taskEngine.(*DockerTaskEngine).State().TaskByArn(testTask.Arn)
 		if !ok {
@@ -232,12 +233,14 @@ func TestLogSenderAndLogRouterForFluentbit(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second)
 	}
-	// Make sure all the resource is cleaned up
-	assert.True(t, ok)
+	// Check that the task is removed from engine state.
+	assert.False(t, ok)
+
+	// TODO: check that logrouter resource directory has been removed.
 }
 
-func createLogDriverAndContainersUsingLogDriverTask(t *testing.T) *apitask.Task {
-	testTask := createTestTask(validTaskArn + randSeq())
+func createLogDriverAndContainersUsingLogDriverTask(t *testing.T, taskARN string) *apitask.Task {
+	testTask := createTestTask(taskARN)
 	rawHostConfigInputForLogSender := dockercontainer.HostConfig{
 		LogConfig: dockercontainer.LogConfig{
 			Type: logRouterDriverName,
@@ -259,7 +262,10 @@ func createLogDriverAndContainersUsingLogDriverTask(t *testing.T) *apitask.Task 
 			Name:      "logsender",
 			Image:     testLogSenderImage,
 			Essential: true,
-			Command:   []string{"sh", "-c", "echo exclude; echo include"},
+			// TODO: the log router occasionally failed to send logs when it's shut down very quickly after started.
+			// Let the task run for a while with a sleep helps avoid that failure, but still needs to figure out the
+			// root cause.
+			Command:   []string{"sh", "-c", "echo exclude; echo include; sleep 10;"},
 			DockerConfig: apicontainer.DockerConfig{
 				HostConfig: func() *string {
 					s := string(rawHostConfigForLogSender)
@@ -282,6 +288,7 @@ func createLogDriverAndContainersUsingLogDriverTask(t *testing.T) *apitask.Task 
 			},
 			Environment: map[string]string{
 				"AWS_EXECUTION_ENV": "AWS_ECS_EC2",
+				"FLB_LOG_LEVEL":     "debug",
 			},
 			TransitionDependenciesMap: make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet),
 		},
@@ -305,14 +312,4 @@ func waitCloudwatchLogs(client *cloudwatchlogs.CloudWatchLogs, params *cloudwatc
 		time.Sleep(time.Second)
 	}
 	return nil, fmt.Errorf("Timeout waiting for the logs to be sent to cloud watch logs")
-}
-
-func randSeq() string {
-	rand.Seed(time.Now().UnixNano())
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-	b := make([]rune, 15)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
-	}
-	return string(b)
 }
