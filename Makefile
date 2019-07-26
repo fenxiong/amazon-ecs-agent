@@ -105,6 +105,9 @@ gogenerate:
 # 'go' may not be on the $PATH for sudo tests
 GO_EXECUTABLE=$(shell command -v go 2> /dev/null)
 
+test-make:
+	echo ${GO_EXECUTABLE}
+
 # VERBOSE includes the options that make the test opt loud
 VERBOSE=-v -cover
 
