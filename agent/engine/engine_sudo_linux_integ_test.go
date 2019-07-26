@@ -1,4 +1,4 @@
-// +build linux,sudo,integration
+// +build linux,sudo
 
 // Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 //
@@ -47,6 +47,7 @@ import (
 )
 
 const (
+	testVolumeImage = "127.0.0.1:51670/amazon/amazon-ecs-volumes-test:latest"
 	testLogSenderImage  = "amazonlinux:2"
 	testFluentbitImage  = "amazon/aws-for-fluent-bit:latest"
 	validTaskArnPrefix  = "arn:aws:ecs:region:account-id:task/"
