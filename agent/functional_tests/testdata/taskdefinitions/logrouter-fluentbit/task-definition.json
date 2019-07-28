@@ -30,7 +30,7 @@
           "Name": "cloudwatch",
           "exclude-pattern": "filtered",
           "include-pattern": "pass",
-          "region": "$$$TEST_REGION$$$",
+          "region": "us-west-2",
           "log_group_name": "ecs-functional-tests",
           "log_stream_prefix": "logrouter-fluentbit-"
         }

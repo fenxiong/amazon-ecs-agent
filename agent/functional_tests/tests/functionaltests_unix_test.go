@@ -1859,3 +1859,77 @@ func testLogRouter(t *testing.T, logRouterType string, getLogSenderMessageFunc f
 	assert.Equal(t, *testTask.TaskArn, jsonBlob["ecs_task_arn"])
 	assert.Contains(t, *testTask.TaskDefinitionArn, jsonBlob["ecs_task_definition"])
 }
+
+func TestRunManyTasksLogRouterFluentd(t *testing.T) {
+	agentOptions := &AgentOptions{
+		ExtraEnvironment: map[string]string{
+			"ECS_ENGINE_TASK_CLEANUP_WAIT_DURATION": "1m",
+			"ECS_AVAILABLE_LOGGING_DRIVERS": `["awslogs"]`,
+		},
+	}
+	agent := RunAgent(t, agentOptions)
+	defer agent.Cleanup()
+
+	numToRun := 50
+	tasks := []*TestTask{}
+	attemptsTaken := 0
+
+	td, err := GetTaskDefinition("logrouter-fluentd")
+	require.NoError(t, err, "Register task definition failed")
+	for numRun := 0; len(tasks) < numToRun; attemptsTaken++ {
+		startNum := 10
+		if numToRun-len(tasks) < 10 {
+			startNum = numToRun - len(tasks)
+		}
+
+		startedTasks, err := agent.StartMultipleTasks(t, td, startNum)
+		if err != nil {
+			continue
+		}
+		tasks = append(tasks, startedTasks...)
+		numRun += 10
+	}
+
+	t.Logf("Ran %d tasks; took %d tries", numToRun, attemptsTaken)
+	for _, task := range tasks {
+		err := task.WaitStopped(10 * time.Minute)
+		assert.NoError(t, err)
+	}
+}
+
+func TestRunManyTasksLogRouterFluentbit(t *testing.T) {
+	agentOptions := &AgentOptions{
+		ExtraEnvironment: map[string]string{
+			"ECS_ENGINE_TASK_CLEANUP_WAIT_DURATION": "1m",
+			"ECS_AVAILABLE_LOGGING_DRIVERS": `["awslogs"]`,
+		},
+	}
+	agent := RunAgent(t, agentOptions)
+	defer agent.Cleanup()
+
+	numToRun := 50
+	tasks := []*TestTask{}
+	attemptsTaken := 0
+
+	td, err := GetTaskDefinition("logrouter-fluentbit")
+	require.NoError(t, err, "Register task definition failed")
+	for numRun := 0; len(tasks) < numToRun; attemptsTaken++ {
+		startNum := 10
+		if numToRun-len(tasks) < 10 {
+			startNum = numToRun - len(tasks)
+		}
+
+		startedTasks, err := agent.StartMultipleTasks(t, td, startNum)
+		if err != nil {
+			continue
+		}
+		tasks = append(tasks, startedTasks...)
+		numRun += 10
+	}
+
+	t.Logf("Ran %d tasks; took %d tries", numToRun, attemptsTaken)
+	for _, task := range tasks {
+		err := task.WaitStopped(10 * time.Minute)
+		assert.NoError(t, err)
+	}
+}
