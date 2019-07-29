@@ -250,11 +250,72 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 			container.Command = *container.Overrides.Command
 		}
 		container.TransitionDependenciesMap = make(map[apicontainerstatus.ContainerStatus]apicontainer.TransitionDependencySet)
+
+		applyFirelensOverride(container)
 	}
 
 	//initialize resources map for task
 	task.ResourcesMapUnsafe = make(map[string][]taskresource.TaskResource)
 	return task, nil
+}
+
+func applyFirelensOverride(container*apicontainer.Container) {
+	// hardcoded log router config
+	if container.Name == "logrouterbit" { // test fluentbit
+		container.FirelensConfig = &apicontainer.FirelensConfig{
+			Type: "fluentbit",
+		}
+		seelog.Infof("Setting container %s's firelens configuration to %v", container.Name, *container.FirelensConfig)
+	} else if container.Name == "logrouter" { // test fluentd
+		container.FirelensConfig = &apicontainer.FirelensConfig{
+			Type: "fluentd",
+		}
+		seelog.Infof("Setting container %s's firelens configuration to %v", container.Name, *container.FirelensConfig)
+	}
+
+	var rawHostConfigInput dockercontainer.HostConfig
+	// hardcoded log sender config
+	if container.Name == "logsenderbit" { // test fluentbit
+		rawHostConfigInput = dockercontainer.HostConfig{
+			LogConfig: dockercontainer.LogConfig{
+				Type: "awsfirelens",
+				Config: map[string]string{
+					"exclude-pattern": "failure",
+					"Name":            "stdout",
+				},
+			},
+		}
+	} else if container.Name == "logsender" { // test fluentd
+		rawHostConfigInput = dockercontainer.HostConfig{
+			LogConfig: dockercontainer.LogConfig{
+				Type: "awsfirelens",
+				Config: map[string]string{
+					"exclude-pattern": "failure",
+					"@type":           "stdout",
+				},
+			},
+		}
+	} else if container.Name == "logsenderbitcw" { // test fluentbit cw
+		rawHostConfigInput = dockercontainer.HostConfig{
+			LogConfig: dockercontainer.LogConfig{
+				Type: "awsfirelens",
+				Config: map[string]string{
+					"exclude-pattern":   "failure",
+					"Name":              "cloudwatch",
+					"region":            "us-west-2",
+					"log_group_name":    "test-fluentbit-cw",
+					"log_stream_name":   "test",
+					"auto_create_group": "true",
+				},
+			},
+		}
+	}
+
+	rawHostConfig, _ := json.Marshal(&rawHostConfigInput)
+	container.DockerConfig.HostConfig = func(s string) *string {
+		return &s
+	}(string(rawHostConfig))
+	seelog.Infof("Setting container %s's host config to %s", container.Name, string(rawHostConfig))
 }
 
 // PostUnmarshalTask is run after a task has been unmarshalled, but before it has been
