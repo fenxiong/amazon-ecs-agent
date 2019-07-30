@@ -120,9 +120,9 @@ func TestLoadsDataForAWSVPCTask(t *testing.T) {
 	task := tasks[0]
 	assert.Equal(t, "arn:aws:ecs:us-west-2:1234567890:task/fad405be-8705-4175-877b-db50109a15f2", task.Arn)
 	assert.Equal(t, "task-networking-state", task.Family)
-	assert.NotNil(t, task.ENI)
+	assert.Equal(t, 1, len(task.ENIs))
 
-	eni := task.ENI
+	eni := task.ENIs[0]
 	assert.Equal(t, "eni-089ba8329b8e3f6ec", eni.ID)
 	assert.Equal(t, "ip-172-31-10-246.us-west-2.compute.internal", eni.GetHostname())
 

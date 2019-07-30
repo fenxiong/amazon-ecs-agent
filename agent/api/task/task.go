@@ -210,6 +210,31 @@ type Task struct {
 	lock sync.RWMutex
 }
 
+// Custom unmarshaller to deal with backward incompatible change from ENI to ENIs
+func (task *Task) UnmarshalJSON(b []byte) error {
+	type Task2 Task
+	var task2 Task2
+	err := json.Unmarshal(b, &task2)
+	if err != nil {
+		return err
+	}
+
+	// deal with legacy ENI field
+	type eniWrapper struct{
+		ENI *apieni.ENI
+	}
+
+	var d eniWrapper
+	err = json.Unmarshal(b, &d)
+	if err == nil && d.ENI != nil {
+		task2.ENIs = append(task2.ENIs, d.ENI)
+	}
+
+	*task = Task(task2)
+
+	return nil
+}
+
 // TaskFromACS translates ecsacs.Task to apitask.Task by first marshaling the received
 // ecsacs.Task to json and unmarshaling it as apitask.Task
 func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, error) {
