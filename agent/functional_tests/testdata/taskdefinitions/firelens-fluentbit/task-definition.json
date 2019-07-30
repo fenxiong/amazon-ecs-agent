@@ -20,12 +20,6 @@
       "essential": true,
       "memory": 256,
       "command": ["sh", "-c", "echo pass; echo filtered"],
-      "dependsOn": [
-        {
-          "containerName": "firelens",
-          "condition": "START"
-        }
-      ],
       "logConfiguration": {
         "logDriver": "awsfirelens",
         "options": {
