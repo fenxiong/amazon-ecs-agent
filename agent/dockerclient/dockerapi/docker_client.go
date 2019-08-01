@@ -736,6 +736,8 @@ func (dg *dockerGoClient) removeContainer(ctx context.Context, dockerID string) 
 }
 
 func (dg *dockerGoClient) containerMetadata(ctx context.Context, id string) DockerContainerMetadata {
+	seelog.Info("*Before inspecting container, sleep 5s")
+	time.Sleep(5 * time.Second)
 	ctx, cancel := context.WithTimeout(ctx, dockerclient.InspectContainerTimeout)
 	defer cancel()
 	dockerContainer, err := dg.InspectContainer(ctx, id, dockerclient.InspectContainerTimeout)

@@ -1046,6 +1046,31 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 	return dockerContainerMD
 }
 
+//func (engine *DockerTaskEngine) waitBridgeIPExists(container *types.ContainerJSON, metadata dockerapi.DockerContainerMetadata) error {
+//	networkMode := string(container.HostConfig.NetworkMode)
+//	seelog.Infof("In ensureBridgeIPExists, networkMode: %s", networkMode)
+//
+//	bridgeIPExist := func(networkSettings *types.NetworkSettings) bool {
+//		if networkSettings.IPAddress != "" {
+//			return true
+//		} else if len(networkSettings.Networks) > 0 {
+//			for mode, _ := range networkSettings.Networks {
+//				if mode == "bridge" {
+//					return true
+//				}
+//			}
+//		}
+//		return false
+//	}
+//
+//	networkSettings := metadata.NetworkSettings
+//	for i := 0; i < 5; i++ {
+//
+//	}
+//
+//	return nil
+//}
+
 func (engine *DockerTaskEngine) provisionContainerResources(task *apitask.Task, container *apicontainer.Container) dockerapi.DockerContainerMetadata {
 	seelog.Infof("Task engine [%s]: setting up container resources for container [%s]",
 		task.Arn, container.Name)

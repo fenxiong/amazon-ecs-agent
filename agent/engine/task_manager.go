@@ -420,6 +420,17 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	container.SetKnownStatus(event.Status)
 	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
 
+	if event.DockerContainerMetadata.NetworkSettings != nil {
+		seelog.Infof("Event status: %s", event.Status.String())
+		seelog.Infof("****** Handling container change, network settings for container %s: %+v", container.Name, *event.DockerContainerMetadata.NetworkSettings)
+		if event.DockerContainerMetadata.NetworkSettings.IPAddress == "" {
+			event.Error = apierrors.NewNamedError(errors.New("missing bridge ip"))
+		} else {
+			seelog.Infof("bridge ip: %s", event.DockerContainerMetadata.NetworkSettings.IPAddress)
+			event.Error = apierrors.NewNamedError(errors.New("missing bridge ip"))
+		}
+	}
+
 	if event.Error != nil {
 		proceedAnyway := mtask.handleEventError(containerChange, currentKnownStatus)
 		if !proceedAnyway {
