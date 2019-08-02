@@ -14,6 +14,7 @@
 package container
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"sync"
@@ -23,9 +24,11 @@ import (
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
 	"github.com/aws/amazon-ecs-agent/agent/credentials"
 	resourcestatus "github.com/aws/amazon-ecs-agent/agent/taskresource/status"
-	"github.com/aws/aws-sdk-go/aws"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
+	dockercontainer "github.com/docker/docker/api/types/container"
 )
 
 const (
@@ -871,19 +874,20 @@ func (c *Container) MergeEnvironmentVariables(envVars map[string]string) {
 	}
 }
 
-func (c *Container) HasSecretAsEnvOrLogDriver() bool {
+func (c *Container) HasSecret(f func(s Secret) bool) bool {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	// Secrets field will be nil if there is no secrets for container
 	if c.Secrets == nil {
 		return false
 	}
+
 	for _, secret := range c.Secrets {
-		if secret.Type == SecretTypeEnv || secret.Target == SecretTargetLogDriver {
+		if f(secret) {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -924,4 +928,37 @@ func (c *Container) AddContainerDependency(name string, condition string) {
 		ContainerName: name,
 		Condition:     condition,
 	})
+}
+
+// GetLogDriver returns the log driver used by the container.
+func (c *Container) GetLogDriver() string {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	if c.DockerConfig.HostConfig == nil {
+		return ""
+	}
+
+	hostConfig := &dockercontainer.HostConfig{}
+	err := json.Unmarshal([]byte(*c.DockerConfig.HostConfig), hostConfig)
+	if err != nil {
+		seelog.Warnf("Encountered error when trying to get log driver for container %s: %v", err)
+		return ""
+	}
+
+	return hostConfig.LogConfig.Type
+}
+
+func (c *Container) GetHostConfig() *string {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.DockerConfig.HostConfig
+}
+
+func (c *Container) GetFirelensConfig() *FirelensConfig {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.FirelensConfig
 }
