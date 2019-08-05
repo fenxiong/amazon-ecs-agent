@@ -791,6 +791,7 @@ func waitCloudwatchLogsWithFilter(client *cloudwatchlogs.CloudWatchLogs, params 
 				waitEventErr <- nil
 				break
 			}
+			time.Sleep(time.Second)
 		}
 	}()
 

@@ -1,16 +1,25 @@
 {
-  "family": "ecsftest-firelens-fluentbit",
+  "family": "ecsftest-firelens-fluentd-old",
   "networkMode": "bridge",
   "containerDefinitions": [
     {
       "name": "firelens",
-      "image": "amazon/aws-for-fluent-bit:1.2.0",
+      "image": "fluent/fluentd:latest",
       "essential": true,
       "memory": 256,
       "firelensConfiguration": {
-        "type": "fluentbit",
+        "type": "fluentd",
         "options": {
           "enable-ecs-log-metadata": "true"
+        }
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group":"ecs-functional-tests",
+          "awslogs-region":"us-west-2",
+          "awslogs-stream-prefix":"firelens-fluentd",
+          "awslogs-multiline-pattern":"^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
         }
       }
     },
@@ -29,12 +38,9 @@
       "logConfiguration": {
         "logDriver": "awsfirelens",
         "options": {
-          "Name": "cloudwatch",
+          "@type": "stdout",
           "exclude-pattern": "filtered",
-          "include-pattern": "pass",
-          "region": "us-west-2",
-          "log_group_name": "ecs-functional-tests",
-          "log_stream_prefix": "firelens-fluentbit-"
+          "include-pattern": "pass"
         }
       }
     }
