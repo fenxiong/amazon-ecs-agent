@@ -16,10 +16,8 @@ package engine
 
 import (
 	"context"
-	"path/filepath"
 	"regexp"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -48,8 +46,6 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	utilsync "github.com/aws/amazon-ecs-agent/agent/utils/sync"
 	"github.com/aws/amazon-ecs-agent/agent/utils/ttime"
-	dockercontainer "github.com/docker/docker/api/types/container"
-
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
@@ -75,13 +71,6 @@ const (
 	engineConnectRetryDelayMultiplier  = 1.5
 	// logDriverTypeFirelens is the log driver type for containers that want to use the firelens container to send logs.
 	logDriverTypeFirelens   = "awsfirelens"
-	logDriverTypeFluentd    = "fluentd"
-	logDriverTag            = "tag"
-	logDriverFluentdAddress = "fluentd-address"
-	dataLogDriverPath       = "/data/firelens/"
-	logDriverAsyncConnect   = "fluentd-async-connect"
-	dataLogDriverSocketPath = "/socket/fluent.sock"
-	socketPathPrefix        = "unix://"
 )
 
 // DockerTaskEngine is a state machine for managing a task and its containers
@@ -914,7 +903,7 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 	// and specify appropriate tag and fluentd-address, so that the logs are sent to and routed by the firelens container.
 	// For reference - https://docs.docker.com/config/containers/logging/fluentd/.
 	if hostConfig.LogConfig.Type == logDriverTypeFirelens {
-		hostConfig.LogConfig = getFirelensLogConfig(task, container, hostConfig, engine.cfg)
+		hostConfig.LogConfig = task.GetFirelensDriverLogConfig(container, hostConfig, engine.cfg)
 	}
 
 	//Apply the log driver secret into container's LogConfig and Env secrets to container.Environment
@@ -987,21 +976,6 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 	seelog.Infof("Task engine [%s]: created docker container for task: %s -> %s, took %s",
 		task.Arn, container.Name, metadata.DockerID, time.Since(createContainerBegin))
 	return metadata
-}
-
-func getFirelensLogConfig(task *apitask.Task, container *apicontainer.Container, hostConfig *dockercontainer.HostConfig, cfg *config.Config) dockercontainer.LogConfig {
-	fields := strings.Split(task.Arn, "/")
-	taskID := fields[len(fields)-1]
-	tag := container.Name + "-" + taskID
-	fluentd := socketPathPrefix + filepath.Join(cfg.DataDirOnHost, dataLogDriverPath, taskID, dataLogDriverSocketPath)
-	logConfig := hostConfig.LogConfig
-	logConfig.Type = logDriverTypeFluentd
-	logConfig.Config = make(map[string]string)
-	logConfig.Config[logDriverTag] = tag
-	logConfig.Config[logDriverFluentdAddress] = fluentd
-	logConfig.Config[logDriverAsyncConnect] = strconv.FormatBool(true)
-	seelog.Debugf("Applying firelens log config for container %s: %v", container.Name, logConfig)
-	return logConfig
 }
 
 func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *apicontainer.Container) dockerapi.DockerContainerMetadata {

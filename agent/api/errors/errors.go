@@ -127,3 +127,13 @@ func (err *ResourceInitError) Error() string {
 func (err *ResourceInitError) ErrorName() string {
 	return "ResourceInitializationError"
 }
+
+// UnsupportedPlatformError is an error indicating that some workflow is invoked on an unsupported platform.
+type UnsupportedPlatformError struct {
+}
+
+// Error returns the error as a string.
+func (err *UnsupportedPlatformError) Error() string { return "unsupported platform" }
+
+// ErrorName returns the name of the error.
+func (err *UnsupportedPlatformError) ErrorName() string { return "UnsupportedPlatformError" }
