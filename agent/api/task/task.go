@@ -108,8 +108,9 @@ const (
 	firelensDriverName = "awsfirelens"
 
 	// firelensConfigVarFmt specifies the format for firelens config variable name. The first placeholder
-	// is option name. The second placeholder is container name.
-	firelensConfigVarFmt = "%s_%s"
+	// is option name. The second placeholder is the index of the container in the task's container list, appended
+	// for the purpose of avoiding config vars from different containers within a task collide.
+	firelensConfigVarFmt = "%s_%d"
 	// firelensConfigVarPlaceholderFmtFluentd and firelensConfigVarPlaceholderFmtFluentbit specify the config var
 	// placeholder format expected by fluentd and fluentbit respectively.
 	firelensConfigVarPlaceholderFmtFluentd   = "\"#{ENV['%s']}\""
@@ -944,8 +945,12 @@ func (task *Task) collectFirelensLogEnvOptions(containerToLogOptions map[string]
 					containerToLogOptions[container.Name] = make(map[string]string)
 				}
 
+				idx := task.GetContainerIndex(container.Name)
+				if idx < 0 {
+					return errors.Errorf("can't find container %s in task %s", container.Name, task.Arn)
+				}
 				containerToLogOptions[container.Name][secret.Name] = fmt.Sprintf(placeholderFmt,
-					fmt.Sprintf(firelensConfigVarFmt, secret.Name, container.Name))
+					fmt.Sprintf(firelensConfigVarFmt, secret.Name, idx))
 			}
 		}
 	}
@@ -2257,8 +2262,14 @@ func (task *Task) PopulateSecretLogOptionsToFirelensContainer(firelensContainer 
 			}
 		}
 
+		idx := task.GetContainerIndex(container.Name)
+		if idx < 0 {
+			return &apierrors.DockerClientConfigError{
+				Msg: fmt.Sprintf("unable to generate config to create firelens container because container %s is not found in task", container.Name),
+			}
+		}
 		for key, value := range logDriverSecretData {
-			envKey := fmt.Sprintf(firelensConfigVarFmt, key, container.Name)
+			envKey := fmt.Sprintf(firelensConfigVarFmt, key, idx)
 			firelensENVs[envKey] = value
 		}
 	}
@@ -2373,4 +2384,22 @@ func (task *Task) AssociationByTypeAndName(associationType, associationName stri
 	}
 
 	return nil, false
+}
+
+// GetContainerIndex returns the index of the container in the container list. This doesn't count internal container.
+func (task *Task) GetContainerIndex(containerName string) int {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	idx := 0
+	for _, container := range task.Containers {
+		if container.IsInternal() {
+			continue
+		}
+		if container.Name == containerName {
+			return idx
+		}
+		idx++
+	}
+	return -1
 }
