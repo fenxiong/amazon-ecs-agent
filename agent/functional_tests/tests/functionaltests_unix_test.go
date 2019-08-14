@@ -1855,7 +1855,9 @@ func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLo
 			}
 		}
 	}
-
+	
+	tempDirPrefix := os.Getenv("ECS_FTEST_TMP")
+	tempDir, err := ioutil.TempDir(tempDirPrefix, "ecs")
 	agentOptions := &AgentOptions{
 		ExtraEnvironment: map[string]string{
 			"ECS_ENGINE_TASK_CLEANUP_WAIT_DURATION": "1m",
@@ -1863,6 +1865,7 @@ func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLo
 			"ECS_ENABLE_AWSLOGS_EXECUTIONROLE_OVERRIDE": "true",
 			"ECS_ENABLE_TASK_IAM_ROLE": "true",
 		},
+		TempDirOverride: tempDir,
 	}
 	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
 	agent := RunAgent(t, agentOptions)

@@ -919,6 +919,7 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 	// For reference - https://docs.docker.com/config/containers/logging/fluentd/.
 	if hostConfig.LogConfig.Type == logDriverTypeFirelens {
 		hostConfig.LogConfig = getFirelensLogConfig(task, container, hostConfig, engine.cfg)
+		seelog.Infof("Setting log config to: %+v", hostConfig.LogConfig)
 	}
 
 	//Apply the log driver secret into container's LogConfig and Env secrets to container.Environment
