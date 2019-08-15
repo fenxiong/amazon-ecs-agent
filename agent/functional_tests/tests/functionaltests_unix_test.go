@@ -1860,7 +1860,7 @@ func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLo
 	// tests unfortunately causes the socket used by firelens container to be slightly longer than that. So I have
 	// to override the path to be shorter.
 	tempDirPrefix := os.Getenv("ECS_FTEST_TMP")
-	tempDir, err := ioutil.TempDir(tempDirPrefix, "ecs")
+	tempDir, err := ioutil.TempDir(tempDirPrefix, "")
 	agentOptions := &AgentOptions{
 		ExtraEnvironment: map[string]string{
 			"ECS_ENGINE_TASK_CLEANUP_WAIT_DURATION": "1m",
