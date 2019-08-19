@@ -16,6 +16,7 @@ package firelens
 
 import (
 	"fmt"
+	"github.com/cihub/seelog"
 
 	"github.com/pkg/errors"
 
@@ -99,6 +100,9 @@ func (firelens *FirelensResource) generateConfig() (generator.FluentConfig, erro
 		}
 		config = newConfig
 	}
+
+	seelog.Info("Adding dummy local config at /tmp/dummy.conf")
+	config.AddExternalConfig("/tmp/dummy.conf", generator.AfterFilters)
 
 	return config, nil
 }
