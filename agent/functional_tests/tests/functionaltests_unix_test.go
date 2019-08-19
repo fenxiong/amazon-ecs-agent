@@ -1805,6 +1805,38 @@ func TestFirelensFluentd(t *testing.T) {
 	testFirelens(t, "fluentd", "@type", "stdout", getLogSenderMessageFunc)
 }
 
+func TestFirelensFluentdFix(t *testing.T) {
+	// getLogSenderMessageFunc defines a function that specifies how to find the log sender's logs after the task
+	// finished running.
+	getLogSenderMessageFunc := func(taskID string, t *testing.T) string {
+		cwlClient := cloudwatchlogs.New(session.New(), aws.NewConfig().WithRegion(*ECS.Config.Region))
+		params := &cloudwatchlogs.FilterLogEventsInput{
+			LogGroupName:  aws.String(awslogsLogGroupName),
+			LogStreamNames: aws.StringSlice([]string{fmt.Sprintf("firelens-fluentd/firelens/%s", taskID)}),
+			// The firelens container's stdout contains both log sender's log and its own logs.
+			// Filter out the logs that belong to the firelens container itself.
+			FilterPattern: aws.String(`?"\"log\":\"pass\"" ?"\"log\":\"filtered\""`),
+		}
+
+		resp, err := waitCloudwatchLogsWithFilter(cwlClient, params, 30 * time.Second)
+		require.NoError(t, err, "CloudWatchLogs get log failed")
+
+		// Expect one message sent from the log sender.
+		assert.Equal(t, 1, len(resp.Events))
+		line := aws.StringValue(resp.Events[0].Message)
+
+		// Format of the log should be something like:
+		// Timestamp containerName-taskID: {"source":"stdout","log":"...","container_id":"...","container_name":"...","ec2_instance_id":"...","ecs_cluster":"...","ecs_task_arn":"...","ecs_task_definition":"..."}
+		// Return the last part which will be checked by the caller (testFirelens).
+		fields := strings.Split(line, " ")
+		message := fields[len(fields)-1]
+
+		return message
+	}
+
+	testFirelens(t, "fluentd-fix", "@type", "stdout", getLogSenderMessageFunc)
+}
+
 // TestFirelensFluentbit starts a task that has a log sender container and a firelens container with configuration type
 // as fluentbit. The log sender container is configured to send logs via the firelens container. It echoes something
 // and then exits. The firelens container is configured to route the logs from the log sender container directly to
