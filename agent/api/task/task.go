@@ -123,6 +123,12 @@ const (
 	awsExecutionEnvKey = "AWS_EXECUTION_ENV"
 	// ec2ExecutionEnv specifies the ec2 execution environment.
 	ec2ExecutionEnv = "AWS_ECS_EC2"
+
+	// specifies bridge type mode for a task
+	bridgeNetworkMode = "bridge"
+
+	// specifies awsvpc type mode for a task
+	awsvcpNetworkMode = "awsvpc"
 )
 
 // TaskOverrides are the overrides applied to a task
@@ -336,7 +342,7 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 	// Adds necessary Pause containers for sharing PID or IPC namespaces
 	task.addNamespaceSharingProvisioningDependency(cfg)
 
-	firelensContainer := task.getFirelensContainer()
+	firelensContainer := task.GetFirelensContainer()
 	if firelensContainer != nil {
 		err = task.applyFirelensSetup(cfg, resourceFields, firelensContainer)
 		if err != nil {
@@ -787,8 +793,8 @@ func (task *Task) getAllASMSecretRequirements() map[string]apicontainer.Secret {
 	return reqs
 }
 
-// getFirelensContainer returns the firelens container in the task, if there is one.
-func (task *Task) getFirelensContainer() *apicontainer.Container {
+// GetFirelensContainer returns the firelens container in the task, if there is one.
+func (task *Task) GetFirelensContainer() *apicontainer.Container {
 	for _, container := range task.Containers {
 		if container.GetFirelensConfig() != nil { // This is a firelens container.
 			return container
@@ -831,9 +837,14 @@ func (task *Task) initializeFirelensResource(config *config.Config, resourceFiel
 			if firelensConfig.Options != nil && firelensConfig.Options["enable-ecs-log-metadata"] == "false" {
 				enableECSLogMetadata = false
 			}
-
+			networkMode := ""
+			if task.ENI != nil {
+				networkMode = awsvcpNetworkMode
+			} else if container.GetNetworkMode() == "" || container.GetNetworkMode() == bridgeNetworkMode {
+				networkMode = bridgeNetworkMode
+			}
 			firelensResource = firelens.NewFirelensResource(config.Cluster, task.Arn, task.Family+":"+task.Version,
-				ec2InstanceID, config.DataDir, firelensConfig.Type, enableECSLogMetadata, containerToLogOptions)
+				ec2InstanceID, config.DataDir, firelensConfig.Type, networkMode, enableECSLogMetadata, containerToLogOptions)
 			task.AddResource(firelens.ResourceName, firelensResource)
 			container.BuildResourceDependency(firelensResource.GetName(), resourcestatus.ResourceCreated,
 				apicontainerstatus.ContainerCreated)

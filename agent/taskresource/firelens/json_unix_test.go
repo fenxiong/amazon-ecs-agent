@@ -45,6 +45,7 @@ func TestMarshalUnmarshalJSON(t *testing.T) {
 		desiredStatusUnsafe:   resourcestatus.ResourceCreated,
 		knownStatusUnsafe:     resourcestatus.ResourceCreated,
 		appliedStatusUnsafe:   resourcestatus.ResourceCreated,
+		networkMode:           bridgeNetworkMode,
 	}
 
 	bytes, err := json.Marshal(firelensResIn)

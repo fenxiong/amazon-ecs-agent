@@ -85,7 +85,13 @@ const (
 	socketPathPrefix        = "unix://"
 
 	// fluentTagDockerFormat is the format for the log tag, which is "containerName-firelens-taskID"
-	fluentTagDockerFormat = "%s-firelens-%s"
+	fluentTagDockerFormat  = "%s-firelens-%s"
+	fluentNetworkHost      = "FLUENT_HOST"
+	fluentNetworkPort      = "FLUENT_PORT"
+	fluentNetworkPortValue = "24224"
+	fluentAwsvpcHostValue  = "127.0.0.1"
+	bridgeNetworkMode      = "bridge"
+	awsvpcNetworkMode      = "awsvpc"
 )
 
 // DockerTaskEngine is a state machine for managing a task and its containers
@@ -916,9 +922,26 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 	// If the container is using a special log driver type "awsfirelens", it means the container wants to use
 	// the firelens container to send logs. In this case, override the log driver type to be fluentd
 	// and specify appropriate tag and fluentd-address, so that the logs are sent to and routed by the firelens container.
-	// For reference - https://docs.docker.com/config/containers/logging/fluentd/.
+	// Update the environment variables FLUENT_HOST and FLUENT_PORT depending on the supported network modes - bridge
+	// and awsvpc. For reference - https://docs.docker.com/config/containers/logging/fluentd/.
 	if hostConfig.LogConfig.Type == logDriverTypeFirelens {
 		hostConfig.LogConfig = getFirelensLogConfig(task, container, hostConfig, engine.cfg)
+		if task.GetTaskENI() != nil || container.GetNetworkMode() == awsvpcNetworkMode {
+			container.MergeEnvironmentVariables(map[string]string{
+				fluentNetworkHost: fluentAwsvpcHostValue,
+				fluentNetworkPort: fluentNetworkPortValue,
+			})
+		} else if container.GetNetworkMode() == "" || container.GetNetworkMode() == bridgeNetworkMode {
+			ipAddress, ok := getBridgeIP(task.GetFirelensContainer().GetNetworkSettings())
+			if !ok {
+				err := apierrors.DockerClientConfigError{Msg: "unable to get BridgeIP for task in bridge  mode"}
+				return dockerapi.DockerContainerMetadata{Error: apierrors.NamedError(&err)}
+			}
+			container.MergeEnvironmentVariables(map[string]string{
+				fluentNetworkHost: ipAddress,
+				fluentNetworkPort: fluentNetworkPortValue,
+			})
+		}
 	}
 
 	//Apply the log driver secret into container's LogConfig and Env secrets to container.Environment
@@ -1057,6 +1080,28 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 	}
 	seelog.Infof("Task engine [%s]: started docker container for task: %s -> %s, took %s",
 		task.Arn, container.Name, dockerContainerMD.DockerID, time.Since(startContainerBegin))
+
+	if container.GetFirelensConfig() != nil {
+		container.SetNetworkSettings(dockerContainerMD.NetworkSettings)
+		if container.GetNetworkMode() == "" || container.GetNetworkMode() == bridgeNetworkMode {
+			getIPBridgeBackoff := retry.NewExponentialBackoff(time.Second, 10*time.Second, 0.2, 2)
+			contextWithTimeout, cancel := context.WithTimeout(engine.ctx, time.Minute)
+			defer cancel()
+			err := retry.RetryWithBackoffCtx(contextWithTimeout, getIPBridgeBackoff, func() error {
+				_, gotIPBridge := getBridgeIP(container.GetNetworkSettings())
+				if gotIPBridge {
+					return nil
+				} else {
+					return errors.New("Bridge IP not available to use for firelens")
+				}
+			})
+			if err != nil {
+				return dockerapi.DockerContainerMetadata{
+					Error: dockerapi.CannotStartContainerError{FromError: err},
+				}
+			}
+		}
+	}
 	return dockerContainerMD
 }
 
@@ -1303,4 +1348,19 @@ func (engine *DockerTaskEngine) updateMetadataFile(task *apitask.Task, cont *api
 		seelog.Debugf("Task engine [%s]: updated metadata file for container %s",
 			task.Arn, cont.Container.Name)
 	}
+}
+
+func getBridgeIP(networkSettings *types.NetworkSettings) (string, bool) {
+	if networkSettings == nil {
+		return "", false
+	} else if networkSettings.IPAddress != "" {
+		return networkSettings.IPAddress, true
+	} else if len(networkSettings.Networks) > 0 {
+		for mode, network := range networkSettings.Networks {
+			if mode == bridgeNetworkMode && network.IPAddress != "" {
+				return network.IPAddress, true
+			}
+		}
+	}
+	return "", false
 }
