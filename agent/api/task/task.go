@@ -101,6 +101,10 @@ const (
 	// First placeholder is host data dir, second placeholder is taskID.
 	firelensConfigBindFormatFluentd   = "%s/data/firelens/%s/config/fluent.conf:/fluentd/etc/fluent.conf"
 	firelensConfigBindFormatFluentbit = "%s/data/firelens/%s/config/fluent.conf:/fluent-bit/etc/fluent-bit.conf"
+
+	firelensS3ConfigBindFormatFluentd  = "%s/data/firelens/%s/config/s3.conf:/fluentd/etc/s3.conf"
+	firelensS3ConfigBindFormatFluentbit  = "%s/data/firelens/%s/config/s3.conf:/fluent-bit/etc/s3.conf"
+
 	// firelensSocketBindFormat specifies the format for firelens container's socket directory bind mount.
 	// First placeholder is host data dir, second placeholder is taskID.
 	firelensSocketBindFormat = "%s/data/firelens/%s/socket/:/var/run/"
@@ -338,7 +342,7 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 
 	firelensContainer := task.getFirelensContainer()
 	if firelensContainer != nil {
-		err = task.applyFirelensSetup(cfg, resourceFields, firelensContainer)
+		err = task.applyFirelensSetup(cfg, resourceFields, firelensContainer, credentialsManager)
 		if err != nil {
 			return err
 		}
@@ -347,8 +351,8 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 }
 
 func (task *Task) applyFirelensSetup(cfg *config.Config, resourceFields *taskresource.ResourceFields,
-	firelensContainer *apicontainer.Container) error {
-	err := task.initializeFirelensResource(cfg, resourceFields, firelensContainer)
+	firelensContainer *apicontainer.Container, credentialsManager credentials.Manager) error {
+	err := task.initializeFirelensResource(cfg, resourceFields, firelensContainer, credentialsManager)
 	if err != nil {
 		return apierrors.NewResourceInitError(task.Arn, err)
 	}
@@ -800,7 +804,7 @@ func (task *Task) getFirelensContainer() *apicontainer.Container {
 // initializeFirelensResource initializes the firelens task resource and adds it as a dependency of the
 // firelens container.
 func (task *Task) initializeFirelensResource(config *config.Config, resourceFields *taskresource.ResourceFields,
-	firelensContainer *apicontainer.Container) error {
+	firelensContainer *apicontainer.Container, credentialsManager credentials.Manager) error {
 	if firelensContainer.GetFirelensConfig() == nil {
 		return errors.New("firelens container config doesn't exist")
 	}
@@ -833,7 +837,8 @@ func (task *Task) initializeFirelensResource(config *config.Config, resourceFiel
 			}
 
 			firelensResource = firelens.NewFirelensResource(config.Cluster, task.Arn, task.Family+":"+task.Version,
-				ec2InstanceID, config.DataDir, firelensConfig.Type, enableECSLogMetadata, containerToLogOptions)
+				ec2InstanceID, config.DataDir, firelensConfig.Type, enableECSLogMetadata, containerToLogOptions,
+				credentialsManager, task.ExecutionCredentialsID)
 			task.AddResource(firelens.ResourceName, firelensResource)
 			container.BuildResourceDependency(firelensResource.GetName(), resourcestatus.ResourceCreated,
 				apicontainerstatus.ContainerCreated)
@@ -968,19 +973,21 @@ func (task *Task) AddFirelensContainerBindMounts(firelensConfigType string, host
 	fields := strings.Split(task.Arn, "/")
 	taskID := fields[len(fields)-1]
 
-	var configBind, socketBind string
+	var configBind, s3ConfigBind, socketBind string
 	switch firelensConfigType {
 	case firelens.FirelensConfigTypeFluentd:
 		configBind = fmt.Sprintf(firelensConfigBindFormatFluentd, config.DataDirOnHost, taskID)
+		s3ConfigBind = fmt.Sprintf(firelensS3ConfigBindFormatFluentd, config.DataDirOnHost, taskID)
 	case firelens.FirelensConfigTypeFluentbit:
 		configBind = fmt.Sprintf(firelensConfigBindFormatFluentbit, config.DataDirOnHost, taskID)
+		s3ConfigBind = fmt.Sprintf(firelensS3ConfigBindFormatFluentbit, config.DataDirOnHost, taskID)
 	default:
 		return &apierrors.HostConfigError{Msg: fmt.Sprintf("encounter invalid firelens configuration type %s",
 			firelensConfigType)}
 	}
 	socketBind = fmt.Sprintf(firelensSocketBindFormat, config.DataDirOnHost, taskID)
 
-	hostConfig.Binds = append(hostConfig.Binds, configBind, socketBind)
+	hostConfig.Binds = append(hostConfig.Binds, configBind, s3ConfigBind, socketBind)
 	return nil
 }
 

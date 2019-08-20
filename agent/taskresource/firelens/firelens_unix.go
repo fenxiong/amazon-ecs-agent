@@ -26,6 +26,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/aws/amazon-ecs-agent/agent/api/task/status"
+	"github.com/aws/amazon-ecs-agent/agent/credentials"
+	"github.com/aws/amazon-ecs-agent/agent/s3"
+	"github.com/aws/amazon-ecs-agent/agent/s3/factory"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	resourcestatus "github.com/aws/amazon-ecs-agent/agent/taskresource/status"
 	"github.com/aws/amazon-ecs-agent/agent/utils/ioutilwrapper"
@@ -44,16 +47,19 @@ const (
 // FirelensResource models fluentd/fluentbit firelens container related resources as a task resource.
 type FirelensResource struct {
 	// Fields that are specific to firelens resource. They are only set at initialization so are not protected by lock.
-	cluster               string
-	taskARN               string
-	taskDefinition        string
-	ec2InstanceID         string
-	resourceDir           string
-	firelensConfigType    string
-	ecsMetadataEnabled    bool
-	containerToLogOptions map[string]map[string]string
-	os                    oswrapper.OS
-	ioutil                ioutilwrapper.IOUtil
+	cluster                string
+	taskARN                string
+	taskDefinition         string
+	ec2InstanceID          string
+	resourceDir            string
+	firelensConfigType     string
+	ecsMetadataEnabled     bool
+	containerToLogOptions  map[string]map[string]string
+	os                     oswrapper.OS
+	ioutil                 ioutilwrapper.IOUtil
+	s3ClientCreator        factory.S3ClientCreator
+	credentialsManager     credentials.Manager
+	executionCredentialsID string
 
 	// Fields for the common functionality of task resource. Access to these fields are protected by lock.
 	createdAtUnsafe     time.Time
@@ -68,17 +74,21 @@ type FirelensResource struct {
 
 // NewFirelensResource returns a new FirelensResource.
 func NewFirelensResource(cluster, taskARN, taskDefinition, ec2InstanceID, dataDir, firelensConfigType string,
-	ecsMetadataEnabled bool, containerToLogOptions map[string]map[string]string) *FirelensResource {
+	ecsMetadataEnabled bool, containerToLogOptions map[string]map[string]string, credentialsManager credentials.Manager,
+	executionCredentialsID string) *FirelensResource {
 	firelensResource := &FirelensResource{
-		cluster:               cluster,
-		taskARN:               taskARN,
-		taskDefinition:        taskDefinition,
-		ec2InstanceID:         ec2InstanceID,
-		firelensConfigType:    firelensConfigType,
-		ecsMetadataEnabled:    ecsMetadataEnabled,
-		containerToLogOptions: containerToLogOptions,
-		os:                    oswrapper.NewOS(),
-		ioutil:                ioutilwrapper.NewIOUtil(),
+		cluster:                cluster,
+		taskARN:                taskARN,
+		taskDefinition:         taskDefinition,
+		ec2InstanceID:          ec2InstanceID,
+		firelensConfigType:     firelensConfigType,
+		ecsMetadataEnabled:     ecsMetadataEnabled,
+		containerToLogOptions:  containerToLogOptions,
+		os:                     oswrapper.NewOS(),
+		ioutil:                 ioutilwrapper.NewIOUtil(),
+		s3ClientCreator:        factory.NewS3ClientCreator(),
+		executionCredentialsID: executionCredentialsID,
+		credentialsManager:     credentialsManager,
 	}
 
 	fields := strings.Split(taskARN, "/")
@@ -328,6 +338,13 @@ func (firelens *FirelensResource) Create() error {
 		return err
 	}
 
+	err = firelens.generateS3ConfigFile()
+	if err != nil {
+		err = errors.Wrap(err, "unable to generate firelens s3 config file")
+		firelens.setTerminalReason(err.Error())
+		return err
+	}
+
 	err = firelens.generateConfigFile()
 	if err != nil {
 		err = errors.Wrap(err, "unable to generate firelens config file")
@@ -403,6 +420,57 @@ func (firelens *FirelensResource) generateConfigFile() error {
 	}
 
 	seelog.Infof("Generated firelens config file at: %s", confFilePath)
+	return nil
+}
+
+func (firelens *FirelensResource) generateS3ConfigFile() error {
+	creds, ok := firelens.credentialsManager.GetTaskCredentials(firelens.executionCredentialsID)
+	if !ok {
+		return errors.New("unable to get execution role credentials")
+	}
+	bucket := "test-fluentd-log-fenxiong"
+	s3Client, err := firelens.s3ClientCreator.NewS3ClientForBucket(bucket, creds.GetIAMRoleCredentials())
+	if err != nil {
+		return errors.Wrapf(err, "unable to initialize s3 client for bucket %s", bucket)
+	}
+
+	temp, err := firelens.ioutil.TempFile(firelens.resourceDir, tempFile)
+	if err != nil {
+		return err
+	}
+	defer temp.Close()
+
+	var key string
+	if firelens.firelensConfigType == FirelensConfigTypeFluentd {
+		key = "fluentd-s3.conf"
+	} else {
+		key = "fluentbit-s3.conf"
+	}
+
+	err = s3.DownloadFile(bucket, key, 10*time.Second, temp, s3Client)
+	if err != nil {
+		return errors.Wrapf(err, "unable to download s3 config %s from bucket %s", key, bucket)
+	}
+	seelog.Infof("Successfully downloaded s3 config %s from bucket %s", key, bucket)
+
+	err = temp.Chmod(os.FileMode(configFilePerm))
+	if err != nil {
+		return err
+	}
+
+	// Persist the config file to disk.
+	err = temp.Sync()
+	if err != nil {
+		return err
+	}
+
+	confFilePath := filepath.Join(firelens.resourceDir, "config", "s3.conf")
+	err = firelens.os.Rename(temp.Name(), confFilePath)
+	if err != nil {
+		return err
+	}
+
+	seelog.Infof("Generated firelens s3 config file at: %s", confFilePath)
 	return nil
 }
 

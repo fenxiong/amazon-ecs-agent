@@ -16,8 +16,8 @@ package firelens
 
 import (
 	"fmt"
-	"github.com/cihub/seelog"
 
+	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
 	generator "github.com/awslabs/go-config-generator-for-fluentd-and-fluentbit"
@@ -103,6 +103,15 @@ func (firelens *FirelensResource) generateConfig() (generator.FluentConfig, erro
 
 	seelog.Info("Adding dummy local config at /tmp/dummy.conf")
 	config.AddExternalConfig("/tmp/dummy.conf", generator.AfterFilters)
+
+	var s3ConfPath string
+	if firelens.firelensConfigType == FirelensConfigTypeFluentd {
+		s3ConfPath = "/fluentd/etc/s3.conf"
+	} else {
+		s3ConfPath = "/fluent-bit/etc/s3.conf"
+	}
+	seelog.Infof("Adding s3 config at %s", s3ConfPath)
+	config.AddExternalConfig(s3ConfPath, generator.AfterFilters)
 
 	return config, nil
 }
