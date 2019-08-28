@@ -30,8 +30,12 @@ type firelensResourceJSON struct {
 	EC2InstanceID          string
 	ResourceDir            string
 	FirelensConfigType     string
+	Region                 string
 	ECSMetadataEnabled     bool
 	ContainersToLogOptions map[string]map[string]string
+	ExecutionCredentialsID string
+	ExternalConfigType     string
+	ExternalConfigValue    string
 	TerminalReason         string
 
 	CreatedAt     time.Time
@@ -56,8 +60,12 @@ func (firelens *FirelensResource) MarshalJSON() ([]byte, error) {
 		EC2InstanceID:          firelens.ec2InstanceID,
 		ResourceDir:            firelens.resourceDir,
 		FirelensConfigType:     firelens.firelensConfigType,
+		Region:                 firelens.region,
 		ECSMetadataEnabled:     firelens.ecsMetadataEnabled,
 		ContainersToLogOptions: firelens.containerToLogOptions,
+		ExecutionCredentialsID: firelens.executionCredentialsID,
+		ExternalConfigType:     firelens.externalConfigType,
+		ExternalConfigValue:    firelens.externalConfigValue,
 		TerminalReason:         firelens.terminalReason,
 		CreatedAt:              firelens.createdAtUnsafe,
 		DesiredStatus: func() *FirelensStatus {
@@ -98,8 +106,12 @@ func (firelens *FirelensResource) UnmarshalJSON(b []byte) error {
 	firelens.ec2InstanceID = temp.EC2InstanceID
 	firelens.resourceDir = temp.ResourceDir
 	firelens.firelensConfigType = temp.FirelensConfigType
+	firelens.region = temp.Region
 	firelens.ecsMetadataEnabled = temp.ECSMetadataEnabled
 	firelens.containerToLogOptions = temp.ContainersToLogOptions
+	firelens.executionCredentialsID = temp.ExecutionCredentialsID
+	firelens.externalConfigType = temp.ExternalConfigType
+	firelens.externalConfigValue = temp.ExternalConfigValue
 	firelens.terminalReason = temp.TerminalReason
 	firelens.createdAtUnsafe = temp.CreatedAt
 	firelens.desiredStatusUnsafe = resourcestatus.ResourceStatus(*temp.DesiredStatus)
