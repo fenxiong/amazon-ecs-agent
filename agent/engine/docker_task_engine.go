@@ -1081,23 +1081,38 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 	seelog.Infof("Task engine [%s]: started docker container for task: %s -> %s, took %s",
 		task.Arn, container.Name, dockerContainerMD.DockerID, time.Since(startContainerBegin))
 
-	if container.GetFirelensConfig() != nil {
-		container.SetNetworkSettings(dockerContainerMD.NetworkSettings)
+	if dockerContainerMD.Error == nil && container.GetFirelensConfig() != nil {
 		if container.GetNetworkMode() == "" || container.GetNetworkMode() == bridgeNetworkMode {
-			getIPBridgeBackoff := retry.NewExponentialBackoff(time.Second, 10*time.Second, 0.2, 2)
-			contextWithTimeout, cancel := context.WithTimeout(engine.ctx, time.Minute)
-			defer cancel()
-			err := retry.RetryWithBackoffCtx(contextWithTimeout, getIPBridgeBackoff, func() error {
-				_, gotIPBridge := getBridgeIP(container.GetNetworkSettings())
-				if gotIPBridge {
-					return nil
-				} else {
-					return errors.New("Bridge IP not available to use for firelens")
-				}
-			})
-			if err != nil {
-				return dockerapi.DockerContainerMetadata{
-					Error: dockerapi.CannotStartContainerError{FromError: err},
+			_, gotIPBridge := getBridgeIP(dockerContainerMD.NetworkSettings)
+			if !gotIPBridge {
+				// If bridge ip is not immediately available after start, keep inspecting the container until getting
+				// the ip or timing out, since containers using firelens as log router need this ip (for bridge mode).
+				getIPBridgeBackoff := retry.NewExponentialBackoff(time.Second, 10*time.Second, 0.2, 2)
+				contextWithTimeout, cancel := context.WithTimeout(engine.ctx, time.Minute)
+				defer cancel()
+
+				err := retry.RetryWithBackoffCtx(contextWithTimeout, getIPBridgeBackoff, func() error {
+					inspectOutput, err := engine.client.InspectContainer(
+						engine.ctx,
+						dockerContainerMD.DockerID,
+						dockerclient.InspectContainerTimeout,
+					)
+					if err != nil {
+						return err
+					}
+
+					_, gotIPBridge := getBridgeIP(inspectOutput.NetworkSettings)
+					if gotIPBridge {
+						dockerContainerMD.NetworkSettings = inspectOutput.NetworkSettings
+						return nil
+					} else {
+						return errors.New("Bridge IP not available to use for firelens")
+					}
+				})
+				if err != nil {
+					return dockerapi.DockerContainerMetadata{
+						Error: dockerapi.CannotStartContainerError{FromError: err},
+					}
 				}
 			}
 		}
