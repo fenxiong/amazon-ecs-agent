@@ -1083,6 +1083,8 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 
 	if dockerContainerMD.Error == nil && container.GetFirelensConfig() != nil {
 		if container.GetNetworkMode() == "" || container.GetNetworkMode() == bridgeNetworkMode {
+			seelog.Info("*** Changing network setting to nil to test retry!")
+			dockerContainerMD.NetworkSettings = nil
 			_, gotIPBridge := getBridgeIP(dockerContainerMD.NetworkSettings)
 			if !gotIPBridge {
 				// If bridge ip is not immediately available after start, keep inspecting the container until getting
@@ -1092,6 +1094,7 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 				defer cancel()
 
 				err := retry.RetryWithBackoffCtx(contextWithTimeout, getIPBridgeBackoff, func() error {
+					seelog.Info("*** Inspecting firelens container!")
 					inspectOutput, err := engine.client.InspectContainer(
 						engine.ctx,
 						dockerContainerMD.DockerID,
@@ -1103,6 +1106,7 @@ func (engine *DockerTaskEngine) startContainer(task *apitask.Task, container *ap
 
 					_, gotIPBridge := getBridgeIP(inspectOutput.NetworkSettings)
 					if gotIPBridge {
+						seelog.Info("*** Got firelens container bridge ip!")
 						dockerContainerMD.NetworkSettings = inspectOutput.NetworkSettings
 						return nil
 					} else {
