@@ -54,7 +54,7 @@ const (
 	capabilityFirelensFluentbit                 = "firelens.fluentbit"
 	capabilityFirelensLoggingDriver             = "logging-driver.awsfirelens"
 	capabilityFirelensConfigFile                = "firelens.options.config.file"
-	capabilityFirelensConfigS3                  = "firelens.options.config.s3"
+	capabilityFirelensConfigS3                  = "firelens.options.config.arn"
 )
 
 // capabilities returns the supported capabilities of this agent / docker-client pair.
