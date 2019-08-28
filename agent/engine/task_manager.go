@@ -792,7 +792,9 @@ func (mtask *managedTask) progressTask() {
 	// We've kicked off one or more transitions, wait for them to
 	// complete, but keep reading events as we do. in fact, we have to for
 	// transitions to complete
+	seelog.Info("Before waitForTransition")
 	mtask.waitForTransition(transitions, transitionChange, transitionChangeEntity)
+	seelog.Info("After waitForTransition")
 	// update the task status
 	if mtask.UpdateStatus() {
 		seelog.Infof("Managed task [%s]: container or resource change also resulted in task change", mtask.Arn)
@@ -804,6 +806,8 @@ func (mtask *managedTask) progressTask() {
 		}
 		mtask.emitTaskEvent(mtask.Task, taskStateChangeReason)
 	}
+
+	seelog.Info("Finish progressing task")
 }
 
 // isWaitingForACSExecutionCredentials checks if the container that can't be transitioned

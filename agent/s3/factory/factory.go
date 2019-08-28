@@ -14,6 +14,8 @@
 package factory
 
 import (
+	"net/url"
+	"os"
 	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/credentials"
@@ -25,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/cihub/seelog"
 )
 
 const (
@@ -44,11 +47,35 @@ type s3ClientCreator struct{}
 // NewS3Client returns a new S3 client based on the region of the bucket.
 func (*s3ClientCreator) NewS3ClientForBucket(bucket, region string,
 	creds credentials.IAMRoleCredentials) (s3client.S3Client, error) {
+	proxy := os.Getenv("S3_CLIENT_PROXY")
+	seelog.Infof("Loaded proxy from S3_CLIENT_PROXY env, proxy: %s", proxy)
+
+	seelog.Info("Sleep 30s")
+	time.Sleep(time.Second * 30)
+	seelog.Info("Done sleeping 30s")
+
+	var proxyURL *url.URL
+	if proxy != "" {
+		result, err := url.Parse("http://" + proxy)
+		if err != nil {
+			return nil, err
+		}
+		proxyURL = result
+	}
+
 	cfg := aws.NewConfig().
-		WithHTTPClient(httpclient.New(roundtripTimeout, false)).
 		WithCredentials(
 			awscreds.NewStaticCredentials(creds.AccessKeyID, creds.SecretAccessKey,
 				creds.SessionToken)).WithRegion(region)
+
+	if proxyURL != nil {
+		seelog.Info("Initializing S3 client with custom proxy")
+		cfg = cfg.WithHTTPClient(httpclient.NewWithCustomProxy(roundtripTimeout, false, proxyURL))
+	} else {
+		seelog.Info("Initializing S3 client without custom proxy")
+		cfg = cfg.WithHTTPClient(httpclient.New(roundtripTimeout, false))
+	}
+
 	sess := session.Must(session.NewSession(cfg))
 
 	svc := s3.New(sess)
