@@ -1845,7 +1845,7 @@ func TestFirelensFluentbit(t *testing.T) {
 }
 
 func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLogOptionValue string,
-	getLogSenderMessageFunc func(string, *testing.T)string) {
+	getLogSenderMessageFunc func(string, *testing.T)string, keyValsFromExternalConfig map[string]string) {
 	if os.Getenv("TEST_DISABLE_EXECUTION_ROLE") == "true" {
 		t.Skip("TEST_DISABLE_EXECUTION_ROLE was set to true")
 	}
@@ -1900,7 +1900,7 @@ func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLo
 	agent := RunAgent(t, agentOptions)
 	defer agent.Cleanup()
 
-	agent.RequireVersion(">=1.30.0")
+	agent.RequireVersion(">=1.29.1")
 
 	tdOverrides := make(map[string]string)
 	tdOverrides["$$$TEST_REGION$$$"] = *ECS.Config.Region
@@ -1933,4 +1933,9 @@ func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLo
 	assert.Equal(t, agent.Cluster, jsonBlob["ecs_cluster"])
 	assert.Equal(t, *testTask.TaskArn, jsonBlob["ecs_task_arn"])
 	assert.Contains(t, *testTask.TaskDefinitionArn, jsonBlob["ecs_task_definition"])
+	if keyValsFromExternalConfig != nil {
+		for key, val := range keyValsFromExternalConfig {
+			assert.Equal(t, val, jsonBlob[key])
+		}
+	}
 }
