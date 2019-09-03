@@ -235,7 +235,7 @@ namespace-tests:
 test-registry: netkitten volumes-test namespace-tests pause-container squid awscli image-cleanup-test-images fluentd \
 				agent-introspection-validator taskmetadata-validator v3-task-endpoint-validator \
 				container-metadata-file-validator elastic-inference-validator appmesh-plugin-validator \
-				eni-trunking-validator
+				eni-trunking-validator fluent-logger
 	@./scripts/setup-test-registry
 
 
@@ -257,6 +257,9 @@ fluentd:
 
 testnnp:
 	$(MAKE) -C misc/testnnp $(MFLAGS)
+
+fluent-logger:
+	$(MAKE) -C misc/fluent-logger $(MFLAGS)
 
 image-cleanup-test-images:
 	$(MAKE) -C misc/image-cleanup-test-images $(MFLAGS)
@@ -369,6 +372,7 @@ clean:
 	-$(MAKE) -C misc/namespace-tests $(MFLAGS) clean
 	-$(MAKE) -C misc/gremlin $(MFLAGS) clean
 	-$(MAKE) -C misc/testnnp $(MFLAGS) clean
+	-$(MAKE) -C misc/fluent-logger $(MFLAGS) clean
 	-$(MAKE) -C misc/image-cleanup-test-images $(MFLAGS) clean
 	-$(MAKE) -C misc/agent-introspection-validator $(MFLAGS) clean
 	-$(MAKE) -C misc/taskmetadata-validator $(MFLAGS) clean
