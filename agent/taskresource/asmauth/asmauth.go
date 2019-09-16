@@ -19,6 +19,7 @@ import (
 	"time"
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
+	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	"github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/asm"
 	"github.com/aws/amazon-ecs-agent/agent/asm/factory"
@@ -407,4 +408,33 @@ func (auth *ASMAuthResource) UnmarshalJSON(b []byte) error {
 	auth.executionCredentialsID = temp.ExecutionCredentialsID
 
 	return nil
+}
+
+// GetAppliedStatus safely returns the currently applied status of the resource
+func (auth *ASMAuthResource) GetAppliedStatus() resourcestatus.ResourceStatus {
+	auth.lock.RLock()
+	defer auth.lock.RUnlock()
+
+	return auth.appliedStatus
+}
+
+func (auth *ASMAuthResource) DependOnTaskNetwork() bool {
+	return false
+}
+
+func (auth *ASMAuthResource) BuildContainerDependency(containerName string, satisfied apicontainerstatus.ContainerStatus,
+	dependent resourcestatus.ResourceStatus) error {
+	return errors.New("Not implemented")
+}
+
+func (auth *ASMAuthResource) GetContainerDependencies(dependent resourcestatus.ResourceStatus) []apicontainer.ContainerDependency {
+	return nil
+}
+
+// UpdateAppliedStatus safely updates the applied status of the resource
+func (auth *ASMAuthResource) UpdateAppliedStatus(status resourcestatus.ResourceStatus) {
+	auth.lock.RLock()
+	defer auth.lock.RUnlock()
+
+	auth.appliedStatus = status
 }

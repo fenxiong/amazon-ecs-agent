@@ -26,6 +26,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 
+	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
+	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
 	"github.com/aws/amazon-ecs-agent/agent/api/task/status"
 	"github.com/aws/amazon-ecs-agent/agent/credentials"
 	"github.com/aws/amazon-ecs-agent/agent/s3"
@@ -87,6 +89,10 @@ type FirelensResource struct {
 	knownStatusUnsafe   resourcestatus.ResourceStatus
 	appliedStatusUnsafe resourcestatus.ResourceStatus
 	statusToTransitions map[resourcestatus.ResourceStatus]func() error
+	// TransitionDependenciesMap is a map of the dependent container status to other
+	// dependencies that must be satisfied in order for this container to transition.
+	transitionDependenciesMap taskresource.TransitionDependenciesMap
+
 	terminalReason      string
 	terminalReasonOnce  sync.Once
 	lock                sync.RWMutex
@@ -122,6 +128,7 @@ func NewFirelensResource(cluster, taskARN, taskDefinition, ec2InstanceID, dataDi
 	}
 
 	firelensResource.initStatusToTransition()
+	firelensResource.transitionDependenciesMap = make(map[resourcestatus.ResourceStatus]taskresource.TransitionDependencySet)
 	return firelensResource, nil
 }
 
@@ -549,4 +556,38 @@ func (firelens *FirelensResource) Cleanup() error {
 
 	seelog.Infof("Removed firelens resource directory at %s", firelens.resourceDir)
 	return nil
+}
+
+func (firelens *FirelensResource) DependOnTaskNetwork() bool {
+	return true
+}
+
+func (firelens *FirelensResource) BuildContainerDependency(containerName string, satisfied apicontainerstatus.ContainerStatus,
+	dependent resourcestatus.ResourceStatus) error {
+	contDep := apicontainer.ContainerDependency{
+		ContainerName:   containerName,
+		SatisfiedStatus: satisfied,
+	}
+	if _, ok := firelens.transitionDependenciesMap[dependent]; !ok {
+		firelens.transitionDependenciesMap[dependent] = taskresource.TransitionDependencySet{}
+	}
+	deps := firelens.transitionDependenciesMap[dependent]
+	deps.ContainerDependencies = append(deps.ContainerDependencies, contDep)
+	firelens.transitionDependenciesMap[dependent] = deps
+	return nil
+}
+
+func (firelens *FirelensResource) GetContainerDependencies(dependent resourcestatus.ResourceStatus) []apicontainer.ContainerDependency {
+	if _, ok := firelens.transitionDependenciesMap[dependent]; !ok {
+		return nil
+	}
+	return firelens.transitionDependenciesMap[dependent].ContainerDependencies
+}
+
+// UpdateAppliedStatus safely updates the applied status of the resource
+func (firelens *FirelensResource) UpdateAppliedStatus(status resourcestatus.ResourceStatus) {
+	firelens.lock.RLock()
+	defer firelens.lock.RUnlock()
+
+	firelens.appliedStatusUnsafe = status
 }

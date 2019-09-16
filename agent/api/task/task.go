@@ -860,6 +860,11 @@ func (task *Task) initializeFirelensResource(config *config.Config, resourceFiel
 			task.AddResource(firelens.ResourceName, firelensResource)
 			container.BuildResourceDependency(firelensResource.GetName(), resourcestatus.ResourceCreated,
 				apicontainerstatus.ContainerCreated)
+
+			if task.IsNetworkModeAWSVPC() {
+				seelog.Infof("Adding pause container dependency to firelens resource")
+				return firelensResource.BuildContainerDependency(NetworkPauseContainerName, apicontainerstatus.ContainerResourcesProvisioned, resourcestatus.ResourceCreated)
+			}
 			return nil
 		}
 	}

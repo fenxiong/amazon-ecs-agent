@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/config"
@@ -62,6 +63,31 @@ func New(timeout time.Duration, insecureSkipVerify bool) *http.Client {
 	// explicitly do not use theirs to avoid changing their behavior.
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
+		Dial: (&net.Dialer{
+			Timeout:   defaultDialTimeout,
+			KeepAlive: defaultDialKeepalive,
+		}).Dial,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
+	transport.TLSClientConfig = &tls.Config{}
+	cipher.WithSupportedCipherSuites(transport.TLSClientConfig)
+	transport.TLSClientConfig.InsecureSkipVerify = insecureSkipVerify
+
+	client := &http.Client{
+		Transport: &ecsRoundTripper{insecureSkipVerify, transport},
+		Timeout:   timeout,
+	}
+
+	return client
+}
+
+func NewWithProxy(timeout time.Duration, insecureSkipVerify bool, proxyURL *url.URL) *http.Client {
+	// Transport is the transport requests will be made over
+	// Note, these defaults are taken from the golang http library. We do not
+	// explicitly do not use theirs to avoid changing their behavior.
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
 		Dial: (&net.Dialer{
 			Timeout:   defaultDialTimeout,
 			KeepAlive: defaultDialKeepalive,

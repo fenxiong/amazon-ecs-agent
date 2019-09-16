@@ -14,6 +14,9 @@
 package factory
 
 import (
+	"net/http"
+	"net/url"
+	"os"
 	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/credentials"
@@ -25,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+
+	"github.com/cihub/seelog"
 )
 
 const (
@@ -44,8 +49,21 @@ type s3ClientCreator struct{}
 // NewS3Client returns a new S3 client based on the region of the bucket.
 func (*s3ClientCreator) NewS3ClientForBucket(bucket, region string,
 	creds credentials.IAMRoleCredentials) (s3client.S3Client, error) {
+	var httpClient *http.Client
+	s3ProxyStr := os.Getenv("S3_CLIENT_PROXY")
+	if s3ProxyStr != "" {
+		seelog.Infof("Using proxy %s for s3: %s", s3ProxyStr)
+		url, err := url.Parse("http://"+s3ProxyStr)
+		if err != nil {
+			return nil, err
+		}
+		httpClient = httpclient.NewWithProxy(roundtripTimeout, false, url)
+	} else  {
+		httpClient = httpclient.New(roundtripTimeout, false)
+	}
+
 	cfg := aws.NewConfig().
-		WithHTTPClient(httpclient.New(roundtripTimeout, false)).
+		WithHTTPClient(httpClient).
 		WithCredentials(
 			awscreds.NewStaticCredentials(creds.AccessKeyID, creds.SecretAccessKey,
 				creds.SessionToken)).WithRegion(region)
