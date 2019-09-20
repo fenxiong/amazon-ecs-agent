@@ -1923,7 +1923,7 @@ func testFirelens(t *testing.T, firelensConfigType, secretLogOptionKey, secretLo
 	agent := RunAgent(t, agentOptions)
 	defer agent.Cleanup()
 
-	agent.RequireVersion(">=1.31.0")
+	agent.RequireVersion(">=1.30.0")
 	uuid := uuid.New()
 	tdOverrides := make(map[string]string)
 	tdOverrides["$$$TEST_REGION$$$"] = *ECS.Config.Region
