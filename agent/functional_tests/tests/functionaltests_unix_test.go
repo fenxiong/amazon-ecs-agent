@@ -95,6 +95,48 @@ func TestRunManyTasks(t *testing.T) {
 	}
 }
 
+func TestCredentialsSDK(t *testing.T) {
+	agentOptions := &AgentOptions{
+		ExtraEnvironment: map[string]string{
+			"ECS_ENABLE_TASK_IAM_ROLE_NETWORK_HOST": "true",
+			"ECS_ENABLE_TASK_IAM_ROLE":              "true",
+		},
+	}
+	os.Setenv("ECS_FTEST_FORCE_NET_HOST", "true")
+	agent := RunAgent(t, agentOptions)
+	defer agent.Cleanup()
+
+	numToRun := 100
+	tasks := []*TestTask{}
+	attemptsTaken := 0
+
+	td, err := GetTaskDefinition("credentials-sdk")
+	require.NoError(t, err, "Register task definition failed")
+	for numRun := 0; len(tasks) < numToRun; attemptsTaken++ {
+		startNum := 10
+		if numToRun-len(tasks) < 10 {
+			startNum = numToRun - len(tasks)
+		}
+
+		startedTasks, err := agent.StartMultipleTasks(t, td, startNum)
+		if err != nil {
+			t.Logf("Start task error: %v", err)
+			continue
+		}
+		tasks = append(tasks, startedTasks...)
+		numRun += 10
+	}
+
+	t.Logf("Ran %v containers; took %v tries\n", numToRun, attemptsTaken)
+	for _, task := range tasks {
+		err := task.WaitStopped(10 * time.Minute)
+		assert.NoError(t, err)
+		code, ok := task.ContainerExitcode("test-success")
+		assert.True(t, ok, "Get exit code failed")
+		assert.Equal(t, 42, code, "Wrong exit code")
+	}
+}
+
 // TestOOMContainer verifies that an OOM container returns an error
 func TestOOMContainer(t *testing.T) {
 	// oom container task requires 500MB of memory; requires a bit more to be stable

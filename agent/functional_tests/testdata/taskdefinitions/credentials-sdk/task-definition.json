@@ -1,0 +1,26 @@
+{
+  "family": "ecsftest-credentials-sdk",
+  "taskRoleArn": "arn:aws:iam::897977802564:role/HuckFuncTestResources-OctokittenFTestTaskIAMRole-8SYIUXL3QDAZ",
+  "networkMode": "host",
+  "containerDefinitions": [
+    {
+      "memory": 100,
+      "cpu": 100,
+      "name": "container-with-iamrole",
+      "essential": false,
+      "image": "897977802564.dkr.ecr.us-west-2.amazonaws.com/testsdkcredentials:latest"
+    },
+    {
+      "name": "test-success",
+      "image": "busybox:latest",
+      "memory": 50,
+      "command": ["sh", "-c", "exit 42"],
+      "dependsOn": [
+        {
+          "containerName": "container-with-iamrole",
+          "condition": "SUCCESS"
+        }
+      ]
+    }
+  ]
+}
