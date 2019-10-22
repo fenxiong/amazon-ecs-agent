@@ -580,8 +580,18 @@ func (dg *dockerGoClient) startContainer(ctx context.Context, id string) DockerC
 		return DockerContainerMetadata{Error: CannotGetDockerClientError{version: dg.version, err: err}}
 	}
 
+	if true {
+		err1 := errors.New("error during connect: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.19/containers/eaeca3d1c68c067c0963a2a48785a65b1b5961acd9c8c6f72c7e316afef11442/start: EOF")
+		return DockerContainerMetadata{Error: CannotStartContainerError{err1}}
+	}
+
 	err = client.ContainerStart(ctx, id, types.ContainerStartOptions{})
 	metadata := dg.containerMetadata(ctx, id)
+	if err == nil {
+		err1 := errors.New("error during connect: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.19/containers/eaeca3d1c68c067c0963a2a48785a65b1b5961acd9c8c6f72c7e316afef11442/start: EOF")
+		seelog.Infof("=== TEST: overriding error to: %v", err1)
+		err = err1
+	}
 	if err != nil {
 		metadata.Error = CannotStartContainerError{err}
 	}
