@@ -15,6 +15,7 @@ package app
 
 import (
 	"context"
+	"runtime/debug"
 
 	"github.com/aws/amazon-ecs-agent/agent/app/args"
 	"github.com/aws/amazon-ecs-agent/agent/logger"
@@ -27,7 +28,7 @@ import (
 // Run runs the ECS Agent App. It returns an exit code, which is used by
 // main() to set the status code for the program
 func Run(arguments []string) int {
-	defer log.Flush()
+	defer cleanup()
 
 	parsedArgs, err := args.New(arguments)
 	if err != nil {
@@ -62,5 +63,13 @@ func Run(arguments []string) int {
 	default:
 		// Start the agent
 		return agent.start()
+	}
+}
+
+func cleanup() {
+	defer log.Flush()
+	if e := recover(); e != nil {
+		log.Errorf("Agent has panicked. File a bug at https://github.com/aws/amazon-ecs-agent/issues. Stacktrace: %s", string(debug.Stack()))
+		panic(e)
 	}
 }
