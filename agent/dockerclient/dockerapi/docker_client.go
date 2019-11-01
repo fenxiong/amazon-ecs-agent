@@ -91,7 +91,11 @@ const (
 	pullRetryJitterMultiplier = 0.2
 )
 
-var ctxTimeoutStopContainer = dockerclient.StopContainerTimeout
+var (
+	ctxTimeoutStopContainer = dockerclient.StopContainerTimeout
+
+	inactivityTimeoutHandlerFunc = handleInactivityTimeout
+)
 
 // DockerClient interface to make testing it easier
 type DockerClient interface {
@@ -388,7 +392,7 @@ func (dg *dockerGoClient) pullImage(ctx context.Context, image string,
 		// handle inactivity timeout
 		var canceled uint32
 		var ch chan<- struct{}
-		reader, ch = handleInactivityTimeout(reader, dg.config.ImagePullInactivityTimeout, cancelRequest, &canceled)
+		reader, ch = inactivityTimeoutHandlerFunc(reader, dg.config.ImagePullInactivityTimeout, cancelRequest, &canceled)
 		defer reader.Close()
 		defer close(ch)
 		decoder := json.NewDecoder(reader)
@@ -1320,7 +1324,7 @@ func (dg *dockerGoClient) Stats(ctx context.Context, id string, inactivityTimeou
 			// handle inactivity timeout
 			var canceled uint32
 			var ch chan<- struct{}
-			resp.Body, ch = handleInactivityTimeout(resp.Body, inactivityTimeout, cancelRequest, &canceled)
+			resp.Body, ch = inactivityTimeoutHandlerFunc(resp.Body, inactivityTimeout, cancelRequest, &canceled)
 			defer resp.Body.Close()
 			defer close(ch)
 
