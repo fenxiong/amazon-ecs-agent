@@ -1434,7 +1434,7 @@ func TestRunEIATask(t *testing.T) {
 		//   3. Even if availability zone has EIA, it has very limited quota and we can easily run out of quota when many tests
 		//   run in parallel.
 		// So, skip the tests on the above failure.
-		t.Skipf("Skipping the test due to start task failure: %v", err)
+		t.Fatalf("Skipping the test due to start task failure: %v", err)
 	} else {
 		require.NoError(t, err, "Error starting elastic inference task")
 	}

@@ -111,7 +111,7 @@ VERBOSE=-v -cover
 # -count=1 runs the test without using the build cache.  The build cache can
 # provide false positives when running integ tests, so we err on the side of
 # caution. See `go help test`
-GOTEST=${GO_EXECUTABLE} test -count=1 ${VERBOSE}
+GOTEST=${GO_EXECUTABLE} test -count=10 -run "TestRunEIATask" ${VERBOSE}
 
 # -race sometimes causes compile issues on Arm
 ifneq (${BUILD_PLATFORM},aarch64)
