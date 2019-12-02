@@ -973,6 +973,13 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 		return s.Type == apicontainer.SecretTypeEnv || s.Target == apicontainer.SecretTargetLogDriver
 	}
 	if container.HasSecret(hasSecretAsEnvOrLogDriver) {
+		go func() {
+			engine.saver.ForceSave()
+		}()
+		seelog.Info("Populate secrets 10000 times!")
+		for i := 0; i < 10000; i++ {
+			task.PopulateSecrets(hostConfig, container)
+		}
 		err := task.PopulateSecrets(hostConfig, container)
 
 		if err != nil {
