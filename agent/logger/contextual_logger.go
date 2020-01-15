@@ -117,3 +117,9 @@ func (c *Contextual) SetContext(context map[string]string) {
 		c.log.SetContext(context)
 	}
 }
+
+func (c *Contextual) Close() {
+	if c.log != nil {
+		c.log.Close()
+	}
+}

@@ -253,6 +253,8 @@ func (mtask *managedTask) overseeTask() {
 	}
 	// TODO: make this idempotent on agent restart
 	go mtask.releaseIPInIPAM()
+	// Clean up the task's logger, otherwise it consumes fd.
+	mtask.log.Close()
 	mtask.cleanupTask(mtask.cfg.TaskCleanupWaitDuration)
 }
 

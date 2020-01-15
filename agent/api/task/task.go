@@ -2554,3 +2554,7 @@ func getDomainForPartition(region string) string {
 	}
 	return partition.DNSSuffix()
 }
+
+func (task *Task) CloseLogger() {
+	task.log.Close()
+}

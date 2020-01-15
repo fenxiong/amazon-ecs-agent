@@ -84,12 +84,12 @@ func NewCgroupResource(taskARN string,
 		resourceSpec:    resourceSpec,
 	}
 	c.initializeResourceStatusToTransitionFunction()
-	c.log.SetContext(map[string]string{
-		"taskARN":         taskARN,
-		"cgroupRoot":      cgroupRoot,
-		"cgroupMountPath": cgroupMountPath,
-		"resourceName":    resourceName,
-	})
+	//c.log.SetContext(map[string]string{
+	//	"taskARN":         taskARN,
+	//	"cgroupRoot":      cgroupRoot,
+	//	"cgroupMountPath": cgroupMountPath,
+	//	"resourceName":    resourceName,
+	//})
 	return c
 }
 
