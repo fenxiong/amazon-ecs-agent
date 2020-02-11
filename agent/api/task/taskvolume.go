@@ -16,7 +16,11 @@ package task
 import (
 	"encoding/json"
 
+	"github.com/aws/amazon-ecs-agent/agent/config"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource"
+	taskresourcetypes "github.com/aws/amazon-ecs-agent/agent/taskresource/types"
 	taskresourcevolume "github.com/aws/amazon-ecs-agent/agent/taskresource/volume"
+
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 )
@@ -25,6 +29,8 @@ const (
 	HostVolumeType   = "host"
 	DockerVolumeType = "docker"
 	EFSVolumeType    = "efs"
+
+	efsVolumePluginCapability = "efsAuth"
 )
 
 // TaskVolume is a definition of all the volumes available for containers to
@@ -147,4 +153,46 @@ func (tv *TaskVolume) unmarshalHostVolume(data json.RawMessage) error {
 		tv.Volume = &hostvolume
 	}
 	return nil
+}
+
+func getEFSVolumeDriverOptions(cfg *config.Config, efsVolCfg *taskresourcevolume.EFSVolumeConfig, credsRelativeURI string) map[string]string {
+	if useEFSDriver(cfg) {
+		return efsVolCfg.GetEFSDriverOptions(credsRelativeURI)
+	}
+	return efsVolCfg.GetNFSDriverOptions(cfg)
+}
+
+func getEFSVolumeDriverName(cfg *config.Config) string {
+	if useEFSDriver(cfg) {
+		return taskresourcevolume.EFSDriverNameEFS
+	}
+	return taskresourcevolume.EFSDriverNameNFS
+}
+
+func useEFSDriver(cfg *config.Config) bool {
+	for _, cap := range cfg.VolumePluginCapabilities {
+		if cap == efsVolumePluginCapability {
+			return true
+		}
+	}
+	return false
+}
+
+// getDockerVolumeResource retrieves docker volume resource from task resource map
+func (task *Task) getDockerVolumeResource() ([]taskresource.TaskResource, bool) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	res, ok := task.ResourcesMapUnsafe[taskresourcetypes.DockerVolumeKey]
+	return res, ok
+}
+
+func (task *Task) SetPausePIDInVolumeResource(pid string) {
+	res, ok := task.getDockerVolumeResource()
+	if !ok {
+		return
+	}
+	volRes := res[0].(*taskresourcevolume.VolumeResource)
+	seelog.Infof("REMOVEME: setting volume resource pid to %s", pid)
+	volRes.SetPauseContainerPID(pid)
 }

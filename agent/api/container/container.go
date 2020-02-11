@@ -101,6 +101,9 @@ type Container struct {
 	Name string
 	// RuntimeID is the docker id of the container
 	RuntimeID string
+	// PIDUnsafe stores the container's PID. Currently, only network pause container has this field populated,
+	// used by EFS Volume task resource to find the task network namespace.
+	PIDUnsafe string `json:"pid,omitempty"`
 	// DependsOnUnsafe is the field which specifies the ordering for container startup and shutdown.
 	DependsOnUnsafe []DependsOn `json:"dependsOn,omitempty"`
 	// V3EndpointID is a container identifier used to construct v3 metadata endpoint; it's unique among
@@ -598,6 +601,22 @@ func (c *Container) SetRuntimeID(RuntimeID string) {
 	defer c.lock.Unlock()
 
 	c.RuntimeID = RuntimeID
+}
+
+// GetRuntimeID gets the PID for a container
+func (c *Container) GetPID() string {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+
+	return c.PIDUnsafe
+}
+
+// SetRuntimeID sets the DockerID for a container
+func (c *Container) SetPID(pid string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.PIDUnsafe = pid
 }
 
 // GetRuntimeID gets the DockerID for a container

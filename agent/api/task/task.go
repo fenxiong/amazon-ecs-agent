@@ -219,6 +219,7 @@ type Task struct {
 	// IAMRoleCredentials object associated with the task. This id can be
 	// used to look up the credentials for task in the credentials manager
 	credentialsID string
+	credentialsRelativeURIUnsafe string
 
 	// ENIs is the list of Elastic Network Interfaces assigned to this task. The
 	// TaskENIs type is helpful when decoding state files which might have stored
@@ -339,6 +340,9 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 		task.initializeASMSecretResource(credentialsManager, resourceFields)
 	}
 
+	task.initializeCredentialsEndpoint(credentialsManager)
+	// NOTE: initializeVolumes needs to be after initializeCredentialsEndpoint, because EFS volume might
+	// needs the credentials endpoint constructed by the latter.
 	if err := task.initializeVolumes(cfg, dockerClient, ctx); err != nil {
 		return err
 	}
@@ -348,7 +352,6 @@ func (task *Task) PostUnmarshalTask(cfg *config.Config,
 		return apierrors.NewResourceInitError(task.Arn, err)
 	}
 
-	task.initializeCredentialsEndpoint(credentialsManager)
 	task.initializeContainersV3MetadataEndpoint(utils.NewDynamicUUIDProvider())
 	if err := task.addNetworkResourceProvisioningDependency(cfg); err != nil {
 		seelog.Errorf("Task [%s]: could not provision network resource: %v", task.Arn, err)
@@ -542,11 +545,8 @@ func (task *Task) addEFSVolumes(
 	vol *TaskVolume,
 	efsvol *taskresourcevolume.EFSVolumeConfig,
 ) error {
-	// These are the NFS options recommended by EFS, see:
-	// https://docs.aws.amazon.com/efs/latest/ug/mounting-fs-mount-cmd-general.html
-	domain := getDomainForPartition(cfg.AWSRegion)
-	ostr := fmt.Sprintf("addr=%s.efs.%s.%s,nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport", efsvol.FileSystemID, cfg.AWSRegion, domain)
-	devstr := fmt.Sprintf(":%s", efsvol.RootDirectory)
+	driverOpts := getEFSVolumeDriverOptions(cfg, efsvol, task.GetCredentialsRelativeURI())
+	driverName := getEFSVolumeDriverName(cfg)
 	volumeResource, err := taskresourcevolume.NewVolumeResource(
 		ctx,
 		vol.Name,
@@ -554,12 +554,8 @@ func (task *Task) addEFSVolumes(
 		task.volumeName(vol.Name),
 		"task",
 		false,
-		"local",
-		map[string]string{
-			"type":   "nfs",
-			"device": devstr,
-			"o":      ostr,
-		},
+		driverName,
+		driverOpts,
 		map[string]string{},
 		dockerClient,
 	)
@@ -700,13 +696,14 @@ func (task *Task) initializeCredentialsEndpoint(credentialsManager credentials.M
 	for _, container := range task.Containers {
 		// container.Environment map would not be initialized if there are
 		// no environment variables to be set or overridden in the container
-		// config. Check if that's the case and initilialize if needed
+		// config. Check if that's the case and initialize if needed
 		if container.Environment == nil {
 			container.Environment = make(map[string]string)
 		}
 		container.Environment[awsSDKCredentialsRelativeURIPathEnvironmentVariableName] = credentialsEndpointRelativeURI
 	}
 
+	task.SetCredentialsRelativeURI(credentialsEndpointRelativeURI)
 }
 
 // initializeContainersV3MetadataEndpoint generates an v3 endpoint id for each container, constructs the
@@ -1968,6 +1965,22 @@ func (task *Task) GetCredentialsID() string {
 	defer task.lock.RUnlock()
 
 	return task.credentialsID
+}
+
+// SetCredentialsRelativeURI sets the credentials relative uri for the task
+func (task *Task) SetCredentialsRelativeURI(uri string) {
+	task.lock.Lock()
+	defer task.lock.Unlock()
+
+	task.credentialsRelativeURIUnsafe = uri
+}
+
+// GetCredentialsID gets the credentials relative uri  for the task
+func (task *Task) GetCredentialsRelativeURI() string {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	return task.credentialsRelativeURIUnsafe
 }
 
 // SetExecutionRoleCredentialsID sets the ID for the task execution role credentials

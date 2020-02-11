@@ -16,6 +16,7 @@ package volume
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -39,6 +40,7 @@ const (
 	DockerLocalVolumeDriver   = "local"
 	resourceProvisioningError = "VolumeError: Agent could not create task's volume resources"
 	EFSVolumeType             = "efs"
+	netNSFormat               = "/proc/%s/ns/net"
 )
 
 // VolumeResource represents volume resource
@@ -47,7 +49,9 @@ type VolumeResource struct {
 	Name       string
 	VolumeType string
 	// VolumeConfig contains docker specific volume fields
-	VolumeConfig        DockerVolumeConfig
+	VolumeConfig   DockerVolumeConfig
+	pauseContainerPIDUnsafe string
+
 	createdAtUnsafe     time.Time
 	desiredStatusUnsafe resourcestatus.ResourceStatus
 	knownStatusUnsafe   resourcestatus.ResourceStatus
@@ -86,14 +90,6 @@ type DockerVolumeConfig struct {
 	Driver     string            `json:"driver"`
 	DriverOpts map[string]string `json:"driverOpts"`
 	Labels     map[string]string `json:"labels"`
-	// DockerVolumeName is internal docker name for this volume.
-	DockerVolumeName string `json:"dockerVolumeName"`
-}
-
-// EFSVolumeConfig represents efs volume configuration.
-type EFSVolumeConfig struct {
-	FileSystemID  string `json:"fileSystemId"`
-	RootDirectory string `json:"rootDirectory"`
 	// DockerVolumeName is internal docker name for this volume.
 	DockerVolumeName string `json:"dockerVolumeName"`
 }
@@ -325,7 +321,7 @@ func (vol *VolumeResource) Create() error {
 		vol.ctx,
 		vol.VolumeConfig.DockerVolumeName,
 		vol.VolumeConfig.Driver,
-		vol.VolumeConfig.DriverOpts,
+		vol.getDriverOpts(),
 		vol.VolumeConfig.Labels,
 		dockerclient.CreateVolumeTimeout)
 
@@ -337,6 +333,24 @@ func (vol *VolumeResource) Create() error {
 	// set readonly field after creation
 	vol.setMountPoint(volumeResponse.DockerVolume.Name)
 	return nil
+}
+
+func (vol *VolumeResource) getDriverOpts() map[string]string {
+	opts := vol.VolumeConfig.DriverOpts
+	if vol.VolumeConfig.Driver != "amazon-ecs-volume-plugin" {
+		return opts
+	}
+	// For awsvpc network mode, pause pid will be set (during the step when the pause container transitions to
+	// RESOURCE_PROVISIONED), and if the driver is the ecs volume plugin, we will pass the network namespace handle
+	// to the driver.
+	driverOpt, _ := opts["o"]
+	pausePID := vol.GetPauseContainerPID()
+	if pausePID != "" {
+		driverOpt += ",netns="
+		driverOpt += fmt.Sprintf(netNSFormat, pausePID)
+	}
+	opts["o"] = driverOpt
+	return opts
 }
 
 // Cleanup performs resource cleanup
@@ -452,4 +466,18 @@ func (vol *VolumeResource) GetContainerDependencies(dependent resourcestatus.Res
 		return nil
 	}
 	return vol.transitionDependenciesMap[dependent].ContainerDependencies
+}
+
+func (vol *VolumeResource) SetPauseContainerPID(pid string) {
+	vol.lock.Lock()
+	defer vol.lock.Unlock()
+
+	vol.pauseContainerPIDUnsafe = pid
+}
+
+func (vol *VolumeResource) GetPauseContainerPID() string {
+	vol.lock.RLock()
+	defer vol.lock.RUnlock()
+
+	return vol.pauseContainerPIDUnsafe
 }
