@@ -1072,9 +1072,11 @@ func TestCleanupTask(t *testing.T) {
 	mockClient.EXPECT().RemoveContainer(gomock.Any(), dockerContainer.DockerName, gomock.Any()).Return(nil)
 	mockImageManager.EXPECT().RemoveContainerReferenceFromImageState(container).Return(nil)
 	mockState.EXPECT().RemoveTask(mTask.Task)
+	mockResource.EXPECT().GetKnownStatus().Return(resourcestatus.ResourceCreated)
+	mockResource.EXPECT().TerminalStatus().Return(resourcestatus.ResourceRemoved)
+	mockResource.EXPECT().GetAppliedStatus().Return(resourcestatus.ResourceStatusNone)
 	mockResource.EXPECT().Cleanup()
 	mockResource.EXPECT().GetName()
-	mockResource.EXPECT().DependOnTaskNetwork().Return(false)
 	mTask.cleanupTask(taskStoppedDuration)
 }
 
@@ -1449,7 +1451,9 @@ func TestCleanupTaskWithResourceHappyPath(t *testing.T) {
 	mockState.EXPECT().RemoveTask(mTask.Task)
 	mockResource.EXPECT().GetName()
 	mockResource.EXPECT().Cleanup().Return(nil)
-	mockResource.EXPECT().DependOnTaskNetwork().Return(false)
+	mockResource.EXPECT().GetKnownStatus().Return(resourcestatus.ResourceCreated)
+	mockResource.EXPECT().TerminalStatus().Return(resourcestatus.ResourceRemoved)
+	mockResource.EXPECT().GetAppliedStatus().Return(resourcestatus.ResourceStatusNone)
 	mTask.cleanupTask(taskStoppedDuration)
 }
 
@@ -1512,7 +1516,9 @@ func TestCleanupTaskWithResourceErrorPath(t *testing.T) {
 	mockState.EXPECT().RemoveTask(mTask.Task)
 	mockResource.EXPECT().GetName()
 	mockResource.EXPECT().Cleanup().Return(errors.New("cleanup error"))
-	mockResource.EXPECT().DependOnTaskNetwork().Return(false)
+	mockResource.EXPECT().GetKnownStatus().Return(resourcestatus.ResourceCreated)
+	mockResource.EXPECT().TerminalStatus().Return(resourcestatus.ResourceRemoved)
+	mockResource.EXPECT().GetAppliedStatus().Return(resourcestatus.ResourceStatusNone)
 	mTask.cleanupTask(taskStoppedDuration)
 }
 

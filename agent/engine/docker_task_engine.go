@@ -45,6 +45,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/taskresource"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/credentialspec"
 	"github.com/aws/amazon-ecs-agent/agent/taskresource/firelens"
+	resourcestatus "github.com/aws/amazon-ecs-agent/agent/taskresource/status"
 	"github.com/aws/amazon-ecs-agent/agent/utils"
 	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 	utilsync "github.com/aws/amazon-ecs-agent/agent/utils/sync"
@@ -531,8 +532,8 @@ func (engine *DockerTaskEngine) sweepTask(task *apitask.Task) {
 
 func (engine *DockerTaskEngine) deleteTask(task *apitask.Task) {
 	for _, resource := range task.GetResources() {
-		// Resource already cleaned up if depends on task network, so skip cleanup here
-		if resource.DependOnTaskNetwork() {
+		// Clean up the resource only if it's not already cleaned up, or in the process of being cleaned up.
+		if resource.GetKnownStatus() == resource.TerminalStatus() || resource.GetAppliedStatus() == resourcestatus.ResourceRemoved {
 			continue
 		}
 		err := resource.Cleanup()

@@ -176,6 +176,42 @@ func TestDeleteTask(t *testing.T) {
 	taskEngine.deleteTask(task)
 }
 
+func TestDeleteTaskSkipRedundantResourceCleanup(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockControl := mock_control.NewMockControl(ctrl)
+	cgroupResource := cgroup.NewCgroupResource("", mockControl, nil, "cgroupRoot", "", specs.LinuxResources{})
+	cgroupResource.SetKnownStatus(resourcestatus.ResourceRemoved)
+	task := &apitask.Task{
+		ENIs: []*apieni.ENI{
+			{
+				MacAddress: mac,
+			},
+		},
+	}
+	task.ResourcesMapUnsafe = make(map[string][]taskresource.TaskResource)
+	task.AddResource("cgroup", cgroupResource)
+	cfg := defaultConfig
+	cfg.TaskCPUMemLimit = config.ExplicitlyEnabled
+	mockState := mock_dockerstate.NewMockTaskEngineState(ctrl)
+	mockSaver := mock_statemanager.NewMockStateManager(ctrl)
+
+	taskEngine := &DockerTaskEngine{
+		state: mockState,
+		saver: mockSaver,
+		cfg:   &cfg,
+	}
+
+	gomock.InOrder(
+		mockState.EXPECT().RemoveTask(task),
+		mockState.EXPECT().RemoveENIAttachment(mac),
+		mockSaver.EXPECT().Save(),
+	)
+
+	taskEngine.deleteTask(task)
+}
+
 func TestDeleteTaskBranchENIEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
