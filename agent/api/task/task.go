@@ -1214,6 +1214,7 @@ func (task *Task) addNetworkResourceProvisioningDependency(cfg *config.Config) e
 		if resource.DependOnTaskNetwork() {
 			seelog.Debugf("Task [%s]: adding network pause container dependency to resource [%s]", task.Arn, resource.GetName())
 			resource.BuildContainerDependency(NetworkPauseContainerName, apicontainerstatus.ContainerResourcesProvisioned, resourcestatus.ResourceStatus(taskresourcevolume.VolumeCreated))
+			pauseContainer.BuildResourceDependency(resource.GetName(), resourcestatus.ResourceRemoved, apicontainerstatus.ContainerStopped)
 		}
 	}
 	return nil
@@ -1238,13 +1239,6 @@ func (task *Task) addNamespaceSharingProvisioningDependency(cfg *config.Config) 
 		}
 		container.BuildContainerDependency(NamespacePauseContainerName, apicontainerstatus.ContainerRunning, apicontainerstatus.ContainerPulled)
 		namespacePauseContainer.BuildContainerDependency(container.Name, apicontainerstatus.ContainerStopped, apicontainerstatus.ContainerStopped)
-	}
-
-	for _, resource := range task.GetResources() {
-		if resource.DependOnTaskNetwork() {
-			seelog.Debugf("Task [%s]: adding namespace pause container dependency to resource [%s]", task.Arn, resource.GetName())
-			resource.BuildContainerDependency(NamespacePauseContainerName, apicontainerstatus.ContainerRunning, resourcestatus.ResourceStatus(taskresourcevolume.VolumeCreated))
-		}
 	}
 }
 

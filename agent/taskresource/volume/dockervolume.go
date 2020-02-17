@@ -418,24 +418,16 @@ func (vol *VolumeResource) GetAppliedStatus() resourcestatus.ResourceStatus {
 	return vol.appliedStatusUnsafe
 }
 
-// UpdateAppliedStatus safely updates the applied status of the resource
-func (vol *VolumeResource) UpdateAppliedStatus(status resourcestatus.ResourceStatus) {
-	vol.lock.RLock()
-	defer vol.lock.RUnlock()
-
-	vol.appliedStatusUnsafe = status
-}
-
 // DependOnTaskNetwork shows whether the resource creation needs task network setup beforehand
 func (vol *VolumeResource) DependOnTaskNetwork() bool {
 	return vol.VolumeType == EFSVolumeType
 }
 
 func (vol *VolumeResource) BuildContainerDependency(containerName string, satisfied apicontainerstatus.ContainerStatus,
-	dependent resourcestatus.ResourceStatus) error {
+	dependent resourcestatus.ResourceStatus) {
 	// No op for non-EFS volume type
 	if vol.VolumeType != EFSVolumeType {
-		return nil
+		return
 	}
 
 	contDep := apicontainer.ContainerDependency{
@@ -448,7 +440,6 @@ func (vol *VolumeResource) BuildContainerDependency(containerName string, satisf
 	deps := vol.transitionDependenciesMap[dependent]
 	deps.ContainerDependencies = append(deps.ContainerDependencies, contDep)
 	vol.transitionDependenciesMap[dependent] = deps
-	return nil
 }
 
 func (vol *VolumeResource) GetContainerDependencies(dependent resourcestatus.ResourceStatus) []apicontainer.ContainerDependency {
