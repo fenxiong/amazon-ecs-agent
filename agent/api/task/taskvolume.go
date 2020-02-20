@@ -16,7 +16,11 @@ package task
 import (
 	"encoding/json"
 
+	"github.com/aws/amazon-ecs-agent/agent/config"
+	"github.com/aws/amazon-ecs-agent/agent/taskresource"
+	taskresourcetypes "github.com/aws/amazon-ecs-agent/agent/taskresource/types"
 	taskresourcevolume "github.com/aws/amazon-ecs-agent/agent/taskresource/volume"
+
 	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 )
@@ -25,6 +29,8 @@ const (
 	HostVolumeType   = "host"
 	DockerVolumeType = "docker"
 	EFSVolumeType    = "efs"
+
+	efsVolumePluginCapability = "efsAuth"
 )
 
 // TaskVolume is a definition of all the volumes available for containers to
@@ -147,4 +153,52 @@ func (tv *TaskVolume) unmarshalHostVolume(data json.RawMessage) error {
 		tv.Volume = &hostvolume
 	}
 	return nil
+}
+
+// getEFSVolumeDriverName returns the driver options for creating the EFS volume.
+func getEFSVolumeDriverOptions(cfg *config.Config, efsVolCfg *taskresourcevolume.EFSVolumeConfig, credsRelativeURI string) map[string]string {
+	if useECSVolumePlugin(cfg) {
+		return efsVolCfg.GetVolumePluginDriverOptions(credsRelativeURI)
+	}
+	return efsVolCfg.GetDockerLocalDriverOptions(cfg)
+}
+
+// getEFSVolumeDriverName returns the driver name for creating the EFS volume.
+func getEFSVolumeDriverName(cfg *config.Config) string {
+	if useECSVolumePlugin(cfg) {
+		return taskresourcevolume.EFSVolumePluginDriverName
+	}
+	return taskresourcevolume.EFSLocalDriverName
+}
+
+// useECSVolumePlugin checks whether we should use the ECS volume plugin.
+func useECSVolumePlugin(cfg *config.Config) bool {
+	for _, cap := range cfg.VolumePluginCapabilities {
+		if cap == efsVolumePluginCapability {
+			return true
+		}
+	}
+	return false
+}
+
+// getDockerVolumeResource retrieves docker volume resource from task resource map.
+func (task *Task) getDockerVolumeResource() ([]taskresource.TaskResource, bool) {
+	task.lock.RLock()
+	defer task.lock.RUnlock()
+
+	res, ok := task.ResourcesMapUnsafe[taskresourcetypes.DockerVolumeKey]
+	return res, ok
+}
+
+// SetPausePIDInVolumeResources sets the pause container pid field in each volume resource.
+func (task *Task) SetPausePIDInVolumeResources(pid string) {
+	resources, ok := task.getDockerVolumeResource()
+	if !ok {
+		return
+	}
+
+	for _, res := range resources {
+		volRes := res.(*taskresourcevolume.VolumeResource)
+		volRes.SetPauseContainerPID(pid)
+	}
 }
