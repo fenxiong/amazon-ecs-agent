@@ -1192,7 +1192,7 @@ func (engine *DockerTaskEngine) provisionContainerResources(task *apitask.Task, 
 		return dockerapi.DockerContainerMetadata{
 			Error: ContainerNetworkingError{
 				fromError: errors.Wrap(err,
-					"container resource provisioning: unable to inspect pause container"),
+					"container resource provisioning: cannot setup task network namespace due to error inspecting pause container"),
 			},
 		}
 	}
@@ -1238,7 +1238,7 @@ func (engine *DockerTaskEngine) cleanupPauseContainerNetwork(task *apitask.Task,
 	}
 	containerInspectOutput, err := engine.inspectContainerByName(task.Arn, container.Name)
 	if err != nil {
-		return errors.Wrap(err, "engine: failed to inspect pause container")
+		return errors.Wrap(err, "engine: cannot cleanup task network namespace due to error inspecting pause container")
 	}
 
 	seelog.Infof("Task engine [%s]: cleaning up the network namespace", task.Arn)

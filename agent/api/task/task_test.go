@@ -761,7 +761,7 @@ func TestPostUnmarshalTaskWithEFSVolumesThatUseECSVolumePlugin(t *testing.T) {
 		  "driver": "amazon-ecs-volume-plugin",
 		  "driverOpts": {
 			"device": "fs-12345:/tmp",
-			"o": "tls,tlsport=12345,iam,awscredentialsrelativeuri=%s,accesspoint=fsap-123",
+			"o": "tls,tlsport=12345,iam,awscredsuri=%s,accesspoint=fsap-123",
 			"type": "efs"
 		  },
 		  "labels": {},

@@ -56,7 +56,7 @@ func TestGetEFSDriverOptions_UseECSVolumePlugin(t *testing.T) {
 	credsURI := "/v2/creds-id"
 	options := GetDriverOptions(cfg, efsVolCfg, credsURI)
 	assert.Equal(t, "efs", options["type"])
-	assert.Equal(t, "tls,tlsport=123,iam,awscredentialsrelativeuri=/v2/creds-id,accesspoint=test-ap", options["o"])
+	assert.Equal(t, "tls,tlsport=123,iam,awscredsuri=/v2/creds-id,accesspoint=test-ap", options["o"])
 	assert.Equal(t, "fs-123:/test", options["device"])
 }
 
@@ -91,5 +91,5 @@ func TestGetVolumePluginDriverOptions(t *testing.T) {
 	require.Contains(t, options, "o")
 	assert.Equal(t, "efs", options["type"])
 	assert.Equal(t, "fs-123:/test", options["device"])
-	assert.Equal(t, "tls,tlsport=123,iam,awscredentialsrelativeuri=/v2/abc,accesspoint=test-ap", options["o"])
+	assert.Equal(t, "tls,tlsport=123,iam,awscredsuri=/v2/abc,accesspoint=test-ap", options["o"])
 }

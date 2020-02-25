@@ -353,7 +353,7 @@ func TestInitializeEFSVolume_UseECSVolumePlugin(t *testing.T) {
 	dockervol, ok := testTask.Volumes[0].Volume.(*taskresourcevolume.DockerVolumeConfig)
 	require.True(t, ok)
 	assert.Equal(t, "efs", dockervol.DriverOpts["type"])
-	assert.Equal(t, "tls,tlsport=12345,iam,awscredentialsrelativeuri=/v2/creds-id,accesspoint=fsap-123", dockervol.DriverOpts["o"])
+	assert.Equal(t, "tls,tlsport=12345,iam,awscredsuri=/v2/creds-id,accesspoint=fsap-123", dockervol.DriverOpts["o"])
 	assert.Equal(t, "fs-12345:/my/root/dir", dockervol.DriverOpts["device"])
 }
 

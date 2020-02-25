@@ -382,7 +382,7 @@
                   "driver": "amazon-ecs-volume-plugin",
                   "driverOpts": {
                     "device": "fs-xxx:/",
-                    "o": "tls,tlsport=20050,iam,awscredentialsrelativeuri=/v2/credentials/xxx,accesspoint=fsap-xxx,netns=/proc/123/ns/net",
+                    "o": "tls,tlsport=20050,iam,awscredsuri=/v2/credentials/xxx,accesspoint=fsap-xxx,netns=/proc/123/ns/net",
                     "type": "efs"
                   },
                   "labels": {},
@@ -403,7 +403,7 @@
                 "driver": "amazon-ecs-volume-plugin",
                 "driverOpts": {
                   "device": "fs-xxx:/",
-                  "o": "tls,tlsport=20050,iam,awscredentialsrelativeuri=/v2/credentials/xxx,accesspoint=fsap-xxx,netns=/proc/123/ns/net",
+                  "o": "tls,tlsport=20050,iam,awscredsuri=/v2/credentials/xxx,accesspoint=fsap-xxx,netns=/proc/123/ns/net",
                   "type": "efs"
                 },
                 "labels": {},

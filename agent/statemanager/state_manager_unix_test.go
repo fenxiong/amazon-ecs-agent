@@ -326,6 +326,6 @@ func TestLoadsDataForEFSGATask(t *testing.T) {
 	assert.Equal(t, "amazon-ecs-volume-plugin", volumeResource.VolumeConfig.Driver)
 	require.NotNil(t, volumeResource.VolumeConfig.DriverOpts)
 	assert.Equal(t, "fs-xxx:/", volumeResource.VolumeConfig.DriverOpts["device"])
-	assert.Equal(t, "tls,tlsport=20050,iam,awscredentialsrelativeuri=/v2/credentials/xxx,accesspoint=fsap-xxx,netns=/proc/123/ns/net", volumeResource.VolumeConfig.DriverOpts["o"])
+	assert.Equal(t, "tls,tlsport=20050,iam,awscredsuri=/v2/credentials/xxx,accesspoint=fsap-xxx,netns=/proc/123/ns/net", volumeResource.VolumeConfig.DriverOpts["o"])
 	assert.Equal(t, "efs", volumeResource.VolumeConfig.DriverOpts["type"])
 }

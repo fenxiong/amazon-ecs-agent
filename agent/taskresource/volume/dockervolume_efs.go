@@ -42,19 +42,19 @@ const (
 
 // EFSVolumeConfig represents efs volume configuration.
 type EFSVolumeConfig struct {
-	AuthConfig            EFSAuthConfig `json:"authorizationConfig"`
-	FileSystemID          string        `json:"fileSystemId"`
-	RootDirectory         string        `json:"rootDirectory"`
-	TransitEncryption     string        `json:"transitEncryption"`
-	TransitEncryptionPort int64         `json:"transitEncryptionPort"`
+	AuthConfig            EFSAuthConfig `json:"authorizationConfig,omitempty"`
+	FileSystemID          string        `json:"fileSystemId,omitempty"`
+	RootDirectory         string        `json:"rootDirectory,omitempty"`
+	TransitEncryption     string        `json:"transitEncryption,omitempty"`
+	TransitEncryptionPort int64         `json:"transitEncryptionPort,omitempty"`
 	// DockerVolumeName is internal docker name for this volume.
 	DockerVolumeName string `json:"dockerVolumeName"`
 }
 
 // EFSAuthConfig contains auth config for an efs volume.
 type EFSAuthConfig struct {
-	AccessPointId string `json:"accessPointId"`
-	Iam           string `json:"iam"`
+	AccessPointId string `json:"accessPointId,omitempty"`
+	Iam           string `json:"iam,omitempty"`
 }
 
 // GetDriverOptions returns the driver options for creating an EFS volume.
@@ -105,7 +105,7 @@ func (efsVolCfg *EFSVolumeConfig) getVolumePluginDriverOptions(credsRelativeURI 
 	}
 	if efsVolCfg.AuthConfig.Iam == efsIAMAuthEnabled {
 		mntOpt.AddOption("iam", "")
-		mntOpt.AddOption("awscredentialsrelativeuri", credsRelativeURI)
+		mntOpt.AddOption("awscredsuri", credsRelativeURI)
 	}
 	if efsVolCfg.AuthConfig.AccessPointId != "" {
 		mntOpt.AddOption("accesspoint", efsVolCfg.AuthConfig.AccessPointId)
