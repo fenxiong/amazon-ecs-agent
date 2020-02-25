@@ -17,6 +17,7 @@ import (
 	"strconv"
 
 	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
+	"github.com/cihub/seelog"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -68,4 +69,24 @@ func PortBindingFromDockerPortBinding(dockerPortBindings nat.PortMap) ([]PortBin
 		}
 	}
 	return portBindings, nil
+}
+
+func PortBindingForTest() []PortBinding {
+	proto, _ := NewTransportProtocol("tcp")
+	portBindings := []PortBinding {
+		{
+			ContainerPort: uint16(0),
+			HostPort: uint16(20449),
+			BindIP: "127.0.0.1",
+			Protocol: proto,
+		},
+		{
+			ContainerPort: uint16(0),
+			HostPort: uint16(20450),
+			BindIP: "127.0.0.1",
+			Protocol: proto,
+		},
+	}
+	seelog.Infof("TESTING Adding port binding: %+v", portBindings)
+	return portBindings
 }

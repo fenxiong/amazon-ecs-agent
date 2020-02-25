@@ -525,6 +525,10 @@ func (mtask *managedTask) emitTaskEvent(task *apitask.Task, reason string) {
 // emitContainerEvent passes a given event up through the containerEvents channel if necessary.
 // It will omit events the backend would not process and will perform best-effort deduplication of events.
 func (mtask *managedTask) emitContainerEvent(task *apitask.Task, cont *apicontainer.Container, reason string) {
+	if cont.Name == "efs-html" {
+		seelog.Info("TESTING - Setting port bindings")
+		cont.SetKnownPortBindings(apicontainer.PortBindingForTest())
+	}
 	event, err := api.NewContainerStateChangeEvent(task, cont, reason)
 	if err != nil {
 		seelog.Infof("Managed task [%s]: unable to create state change event for container [%s]: %v",
