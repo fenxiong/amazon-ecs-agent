@@ -318,7 +318,24 @@ func (vol *VolumeResource) SourcePath() string {
 // Create performs resource creation
 func (vol *VolumeResource) Create() error {
 	seelog.Debugf("Creating volume with name %s using driver %s", vol.VolumeConfig.DockerVolumeName, vol.VolumeConfig.Driver)
+	seelog.Info("[TESTING] Sleep 5 seconds!")
+	seelog.Infof("[TESTING] Driver options: %+v", vol.getDriverOpts())
+	time.Sleep(5 * time.Second)
 	volumeResponse := vol.client.CreateVolume(
+		vol.ctx,
+		vol.VolumeConfig.DockerVolumeName,
+		vol.VolumeConfig.Driver,
+		vol.getDriverOpts(),
+		vol.VolumeConfig.Labels,
+		dockerclient.CreateVolumeTimeout)
+	if volumeResponse.Error != nil {
+		seelog.Infof("[TESTING] Create volume failed with: %v", volumeResponse.Error)
+		seelog.Info("[TESTING] Sleep 10s and try again!")
+		time.Sleep(10 * time.Second)
+		seelog.Info("[TESTING] Done sleeping")
+	}
+
+	volumeResponse = vol.client.CreateVolume(
 		vol.ctx,
 		vol.VolumeConfig.DockerVolumeName,
 		vol.VolumeConfig.Driver,
