@@ -273,6 +273,24 @@ func (s CloseMessage) GoString() string {
 	return s.String()
 }
 
+type ConfigVolumeConfiguration struct {
+	_ struct{} `type:"structure"`
+
+	Contents *string `locationName:"contents" type:"string"`
+
+	Type *string `locationName:"type" type:"string"`
+}
+
+// String returns the string representation
+func (s ConfigVolumeConfiguration) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s ConfigVolumeConfiguration) GoString() string {
+	return s.String()
+}
+
 type Container struct {
 	_ struct{} `type:"structure"`
 
@@ -1485,6 +1503,8 @@ func (s VersionInfo) GoString() string {
 
 type Volume struct {
 	_ struct{} `type:"structure"`
+
+	ConfigVolumeConfiguration *ConfigVolumeConfiguration `locationName:"configVolumeConfiguration" type:"structure"`
 
 	DockerVolumeConfiguration *DockerVolumeConfiguration `locationName:"dockerVolumeConfiguration" type:"structure"`
 

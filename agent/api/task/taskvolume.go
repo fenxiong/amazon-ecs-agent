@@ -29,6 +29,7 @@ const (
 	HostVolumeType   = "host"
 	DockerVolumeType = "docker"
 	EFSVolumeType    = "efs"
+	ConfigVolumeType = "config"
 
 	efsVolumePluginCapability = "efsAuth"
 )
@@ -73,6 +74,8 @@ func (tv *TaskVolume) UnmarshalJSON(b []byte) error {
 		return tv.unmarshalDockerVolume(intermediate["dockerVolumeConfiguration"])
 	case EFSVolumeType:
 		return tv.unmarshalEFSVolume(intermediate["efsVolumeConfiguration"])
+	case ConfigVolumeType:
+		return tv.unmarshalConfigVolume(intermediate["configVolumeConfiguration"])
 	default:
 		return errors.Errorf("unrecognized volume type: %q", tv.Type)
 	}
@@ -96,6 +99,8 @@ func (tv *TaskVolume) MarshalJSON() ([]byte, error) {
 		result["host"] = tv.Volume
 	case EFSVolumeType:
 		result["efsVolumeConfiguration"] = tv.Volume
+	case ConfigVolumeType:
+		result["configVolumeConfiguration"] = tv.Volume
 	default:
 		return nil, errors.Errorf("unrecognized volume type: %q", tv.Type)
 	}
@@ -128,6 +133,19 @@ func (tv *TaskVolume) unmarshalEFSVolume(data json.RawMessage) error {
 	}
 
 	tv.Volume = &efsVolumeConfig
+	return nil
+}
+
+func (tv *TaskVolume) unmarshalConfigVolume(data json.RawMessage) error {
+	if data == nil {
+		return errors.New("invalid volume: empty volume configuration")
+	}
+	var configVolumeConfig taskresourcevolume.ConfigVolumeConfig
+	err := json.Unmarshal(data, &configVolumeConfig)
+	if err != nil {
+		return err
+	}
+	tv.Volume = &configVolumeConfig
 	return nil
 }
 

@@ -259,6 +259,7 @@ type Task struct {
 // TaskFromACS translates ecsacs.Task to apitask.Task by first marshaling the received
 // ecsacs.Task to json and unmarshaling it as apitask.Task
 func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, error) {
+	modifyPayload(acsTask)
 	data, err := jsonutil.BuildJSON(acsTask)
 	if err != nil {
 		return nil, err
@@ -284,6 +285,18 @@ func TaskFromACS(acsTask *ecsacs.Task, envelope *ecsacs.PayloadMessage) (*Task, 
 	//initialize resources map for task
 	task.ResourcesMapUnsafe = make(map[string][]taskresource.TaskResource)
 	return task, nil
+}
+
+func modifyPayload(acsTask *ecsacs.Task) {
+	seelog.Infof("TESTING modifying task payload for task %s", *acsTask.Arn)
+	acsTask.Volumes = append(acsTask.Volumes, &ecsacs.Volume{
+		Name: aws.String("test-config-vol"),
+		Type: aws.String("config"),
+		ConfigVolumeConfiguration: &ecsacs.ConfigVolumeConfiguration{
+			Type: aws.String("inline"),
+			Contents: aws.String("hello world"),
+		},
+	})
 }
 
 func (task *Task) initializeVolumes(cfg *config.Config, dockerClient dockerapi.DockerClient, ctx context.Context) error {

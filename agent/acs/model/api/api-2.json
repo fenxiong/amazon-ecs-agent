@@ -331,6 +331,13 @@
         "authorizationConfig":{"shape":"EFSAuthorizationConfig"}
       }
     },
+    "ConfigVolumeConfiguration":{
+      "type":"structure",
+      "members":{
+        "type":{"shape":"String"},
+        "contents":{"shape":"String"}
+      }
+    },
     "ElasticNetworkInterface":{
       "type":"structure",
       "members":{
@@ -718,7 +725,8 @@
         "type":{"shape":"VolumeType"},
         "host":{"shape":"HostVolumeProperties"},
         "dockerVolumeConfiguration":{"shape":"DockerVolumeConfiguration"},
-        "efsVolumeConfiguration":{"shape":"EFSVolumeConfiguration"}
+        "efsVolumeConfiguration":{"shape":"EFSVolumeConfiguration"},
+        "configVolumeConfiguration":{"shape":"ConfigVolumeConfiguration"}
       }
     },
     "VolumeFrom":{
