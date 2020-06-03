@@ -27,7 +27,7 @@ COPY out/cni-plugins /amazon-ecs-cni-plugins
 # https://golang.org/src/pkg/crypto/x509/root_unix.go
 COPY misc/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-EXPOSE 51678 51679
+EXPOSE 51678 51679 51660
 
 HEALTHCHECK CMD ["/agent", "--healthcheck"]
 

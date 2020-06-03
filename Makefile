@@ -78,6 +78,7 @@ docker-release: pause-container-release cni-plugins .out-stamp
 	@docker build -f scripts/dockerfiles/Dockerfile.cleanbuild -t "amazon/amazon-ecs-agent-cleanbuild:make" .
 	@docker run --net=none \
 		--env TARGET_OS="${TARGET_OS}" \
+		--env BUILD_TAGS="${BUILD_TAGS}" \
 		--env LDFLAGS="-X github.com/aws/amazon-ecs-agent/agent/config.DefaultPauseContainerTag=$(PAUSE_CONTAINER_TAG) \
 			-X github.com/aws/amazon-ecs-agent/agent/config.DefaultPauseContainerImageName=$(PAUSE_CONTAINER_IMAGE)" \
 		--user "$(USERID)" \
