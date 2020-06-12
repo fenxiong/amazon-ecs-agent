@@ -128,6 +128,7 @@ func (cfg *Config) platformOverrides() {
 		MemoryUnbounded: memoryUnbounded,
 	}
 	cfg.PlatformVariables = platformVariables
+	cfg.PrometheusMetricsEnabled = true
 }
 
 // platformString returns platform-specific config data that can be serialized
