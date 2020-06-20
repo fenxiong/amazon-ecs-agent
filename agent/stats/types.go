@@ -14,6 +14,8 @@
 package stats
 
 import (
+	"github.com/aws/amazon-ecs-agent/agent/utils/nswrapper"
+	"github.com/aws/amazon-ecs-agent/agent/eni/netlinkwrapper"
 	"time"
 
 	"context"
@@ -65,6 +67,15 @@ type ContainerMetadata struct {
 	NetworkMode string `json:"-"`
 }
 
+type TaskMetadata struct {
+	TaskArn string `json:"-"`
+	// ContainerPID is the PID of a container in the task. If the task has multiple containers, the pid can belong
+	// to any container.
+	ContainerPID     string   `json:"-"`
+	DeviceName       []string `json:"-"`
+	NumberContainers int      `json:"-"`
+}
+
 // StatsContainer abstracts methods to gather and aggregate utilization data for a container.
 type StatsContainer struct {
 	containerMetadata *ContainerMetadata
@@ -74,6 +85,17 @@ type StatsContainer struct {
 	statsQueue        *Queue
 	resolver          resolver.ContainerMetadataResolver
 	config            *config.Config
+}
+
+type StatsTask struct {
+	StatsQueue         *Queue
+	TaskMetadata       *TaskMetadata
+	Ctx                context.Context
+	Cancel             context.CancelFunc
+	Resolver           resolver.ContainerMetadataResolver
+	client             TaskStatsInterface
+	nswrapperinterface nswrapper.NS
+	netlinkinterface   netlinkwrapper.NetLink
 }
 
 // taskDefinition encapsulates family and version strings for a task definition

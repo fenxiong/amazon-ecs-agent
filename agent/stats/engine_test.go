@@ -29,6 +29,8 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi"
 	mock_dockerapi "github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi/mocks"
 	mock_resolver "github.com/aws/amazon-ecs-agent/agent/stats/resolver/mock"
+	mock_stats "github.com/aws/amazon-ecs-agent/agent/stats/mock"
+
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/docker/docker/api/types"
@@ -415,11 +417,14 @@ func TestSynchronizeOnRestart(t *testing.T) {
 		statsStarted <- struct{}{}
 	}).Return(statsChan, nil)
 
-	resolver.EXPECT().ResolveTask(containerID).Return(&apitask.Task{
+	testTask := &apitask.Task{
 		Arn:               "t1",
 		KnownStatusUnsafe: apitaskstatus.TaskRunning,
 		Family:            "f1",
-	}, nil)
+	}
+
+	resolver.EXPECT().ResolveTask(containerID).Return(testTask, nil).Times(2)
+	resolver.EXPECT().ResolveTaskByARN(gomock.Any()).Return(testTask, nil).AnyTimes()
 	resolver.EXPECT().ResolveContainer(containerID).Return(&apicontainer.DockerContainer{
 		DockerID: containerID,
 		Container: &apicontainer.Container{
@@ -456,20 +461,40 @@ func testNetworkModeStats(t *testing.T, netMode string, enis []*apieni.ENI, empt
 	defer mockCtrl.Finish()
 	resolver := mock_resolver.NewMockContainerMetadataResolver(mockCtrl)
 	mockDockerClient := mock_dockerapi.NewMockDockerClient(mockCtrl)
-	t1 := &apitask.Task{
-		Arn:    "t1",
-		Family: "f1",
-		ENIs:   enis,
-	}
-	resolver.EXPECT().ResolveTask("c1").AnyTimes().Return(t1, nil)
-	resolver.EXPECT().ResolveContainer(gomock.Any()).AnyTimes().Return(&apicontainer.DockerContainer{
+	mockTaskstats := mock_stats.NewMockTaskStatsInterface(mockCtrl)
+
+
+	testContainer := &apicontainer.DockerContainer{
 		Container: &apicontainer.Container{
 			Name:              "test",
 			NetworkModeUnsafe: netMode,
 		},
-	}, nil)
-	mockDockerClient.EXPECT().Stats(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	}
 
+	t1 := &apitask.Task{
+		Arn:               "t1",
+		Family:            "f1",
+		ENIs:              enis,
+		KnownStatusUnsafe: apitaskstatus.TaskRunning,
+		Containers: []*apicontainer.Container{
+			{Name: "test",},
+		},
+	}
+
+	deviceList := []string{"device1"}
+	resolver.EXPECT().ResolveTask("c1").AnyTimes().Return(t1, nil)
+	resolver.EXPECT().ResolveTaskByARN(gomock.Any()).Return(t1, nil).AnyTimes()
+
+	resolver.EXPECT().ResolveContainer(gomock.Any()).AnyTimes().Return(testContainer, nil)
+	mockDockerClient.EXPECT().Stats(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
+	mockTaskstats.EXPECT().PopulateNIDeviceList(gomock.Any()).Return(deviceList, nil).AnyTimes()
+
+	mockDockerClient.EXPECT().InspectContainer(gomock.Any(), gomock.Any(), gomock.Any()).Return(&types.ContainerJSON{
+		ContainerJSONBase: &types.ContainerJSONBase{
+			ID:    "test",
+			State: &types.ContainerState{Pid: 23},
+		},
+	}, nil).AnyTimes()
 	engine := NewDockerStatsEngine(&cfg, nil, eventStream("TestTaskNetworkStatsSet"))
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()

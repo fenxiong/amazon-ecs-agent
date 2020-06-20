@@ -126,6 +126,13 @@ func (container *StatsContainer) processStatsStream() error {
 				}
 				return nil
 			}
+
+			// The length of PercpuUsage represents the number of cores in an instance.
+			if len(rawStat.CPUStats.CPUUsage.PercpuUsage) == 0 || numCores == uint64(0) {
+				seelog.Debug("Invalid container statistics reported, no cpu core usage reported")
+				return fmt.Errorf("Invalid container statistics reported, no cpu core usage reported")
+			}
+
 			if err := container.statsQueue.Add(rawStat); err != nil {
 				seelog.Warnf("Container [%s]: error converting stats for container: %v", dockerID, err)
 			}
