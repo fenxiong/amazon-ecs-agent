@@ -27,11 +27,14 @@ import (
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apitask "github.com/aws/amazon-ecs-agent/agent/api/task"
 	apitaskstatus "github.com/aws/amazon-ecs-agent/agent/api/task/status"
+	mock_netlink "github.com/aws/amazon-ecs-agent/agent/eni/netlinkwrapper/mocks"
 	mock_resolver "github.com/aws/amazon-ecs-agent/agent/stats/resolver/mock"
 
+	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/docker/docker/api/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
 )
 
@@ -117,6 +120,36 @@ var statsNetworkData3 = map[string]types.NetworkStats{
 
 var statsNetworkData = []map[string]types.NetworkStats{
 	statsNetworkData1, statsNetworkData2, statsNetworkData3,
+}
+
+func TestStats(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockNS := mock_utils.NewMockNS(ctrl)
+	mockNetLink := mock_netlink.NewMockNetLink(ctrl)
+
+	mockNS.EXPECT().WithNetNSPath("/host/proc/123/ns/net", gomock.Any()).Do(func(nsPath interface{}, toRun func(n ns.NetNS) error) error {
+		return toRun(nil)
+	})
+	mockNetLink.EXPECT().LinkByName("eth0").Return(&netlink.Device{
+		LinkAttrs: netlink.LinkAttrs{
+			Name: "name",
+			Statistics: &netlink.LinkStatistics{
+				RxPackets: uint64(1),
+			},
+		},
+	}, nil)
+
+	taskstatsclient := &TaskStatsStruct{
+		nsclient: mockNS,
+		netlinkClient: mockNetLink,
+	}
+	statsChan, _ := taskstatsclient.GetAWSVPCNetworkStats([]string{"eth0"}, "123", 1)
+	stats := <- statsChan
+	require.NotNil(t, stats)
+	require.Contains(t, stats.Networks, "name")
+	assert.Equal(t, uint64(1), stats.Networks["name"].RxPackets)
 }
 
 func TestTaskStatsCollection(t *testing.T) {

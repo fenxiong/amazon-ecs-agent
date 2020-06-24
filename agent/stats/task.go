@@ -28,8 +28,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/docker/docker/api/types"
 	netlinklib "github.com/vishvananda/netlink"
-	"math/rand"
-	"time"
+	//"math/rand"
+	//"time"
 )
 
 const (
@@ -212,7 +212,7 @@ func (taskstatsclient *TaskStatsStruct) GetAWSVPCNetworkStats(deviceList []strin
 	statsC := make(chan *dockerstats.StatsJSON)
 
 	go func() {
-		time.Sleep(time.Second * time.Duration(rand.Intn(int(config.DefaultPollingMetricsWaitDuration))))
+		// time.Sleep(time.Second * time.Duration(rand.Intn(int(config.DefaultPollingMetricsWaitDuration))))
 		networkStats := make(map[string]dockerstats.NetworkStats)
 		for _, device := range deviceList {
 			var link netlinklib.Link
