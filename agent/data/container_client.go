@@ -20,6 +20,7 @@ import (
 	"github.com/aws/amazon-ecs-agent/agent/utils"
 
 	"github.com/boltdb/bolt"
+	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 )
 
@@ -39,6 +40,7 @@ func (c *client) SaveDockerContainer(container *apicontainer.DockerContainer) er
 // apicontainer.DockerContainer exists, this updates the Container part of it; otherwise, a new
 // apicontainer.DockerContainer is created and saved.
 func (c *client) SaveContainer(container *apicontainer.Container) error {
+	seelog.Info("[TESTING] SaveContainer is called!")
 	id, err := GetContainerID(container)
 	if err != nil {
 		return errors.Wrap(err, "failed to generate database id")
