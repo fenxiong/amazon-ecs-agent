@@ -74,6 +74,8 @@ func (queue *Queue) setLastStat(stat *types.StatsJSON) {
 	queue.lock.Lock()
 	defer queue.lock.Unlock()
 
+	seelog.Infof("Last stats are set! stats: %v", *stat)
+
 	queue.lastStat = stat
 }
 
@@ -144,6 +146,8 @@ func (queue *Queue) add(rawStat *ContainerStats) {
 func (queue *Queue) GetLastStat() *types.StatsJSON {
 	queue.lock.RLock()
 	defer queue.lock.RUnlock()
+
+	seelog.Infof("Last stats are get! stats: %v", queue.lastStat)
 
 	return queue.lastStat
 }

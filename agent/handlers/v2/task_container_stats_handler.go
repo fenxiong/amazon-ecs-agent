@@ -92,7 +92,9 @@ func WriteContainerStatsResponse(w http.ResponseWriter,
 	taskARN string,
 	containerID string,
 	statsEngine stats.Engine) {
+	seelog.Info("[DEBUG] before ContainerDockerStats")
 	dockerStats, _, err := statsEngine.ContainerDockerStats(taskARN, containerID)
+	seelog.Infof("[DEBUG] before ContainerDockerStats, got docker stats: %v, err: %v", *dockerStats, err)
 	if err != nil {
 		errResponseJSON, err := json.Marshal("Unable to get container stats for: " + containerID)
 		if e := utils.WriteResponseIfMarshalError(w, err); e != nil {

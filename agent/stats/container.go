@@ -127,6 +127,7 @@ func (container *StatsContainer) processStatsStream() error {
 				}
 				return nil
 			}
+			container.statsQueue.setLastStat(rawStat)
 			err := validateDockerStats(rawStat)
 			if err != nil {
 				return err

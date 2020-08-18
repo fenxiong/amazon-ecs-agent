@@ -18,6 +18,7 @@ package stats
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"sync"
 	"time"
@@ -752,6 +753,14 @@ func (engine *DockerStatsEngine) ContainerDockerStats(taskARN string, containerI
 	engine.lock.RLock()
 	defer engine.lock.RUnlock()
 
+	defer func() {
+		if r := recover(); r != nil {
+			seelog.Infof("stacktrace from panic %s: \n", string(debug.Stack()))
+		}
+	}()
+
+	seelog.Info("[DEBUG] Enter ContainerDockerStats")
+
 	containerIDToStatsContainer, ok := engine.tasksToContainers[taskARN]
 	taskToTaskStats := engine.taskToTaskStats
 	if !ok {
@@ -759,6 +768,7 @@ func (engine *DockerStatsEngine) ContainerDockerStats(taskARN string, containerI
 			taskARN, containerID)
 	}
 
+	seelog.Info("[DEBUG] before containerIDToStatsContainer")
 	container, ok := containerIDToStatsContainer[containerID]
 	if !ok {
 		return nil, nil, errors.Errorf("stats engine: container not found: %s", containerID)
@@ -766,6 +776,7 @@ func (engine *DockerStatsEngine) ContainerDockerStats(taskARN string, containerI
 	containerStats := container.statsQueue.GetLastStat()
 	containerNetworkRateStats := container.statsQueue.GetLastNetworkStatPerSec()
 
+	seelog.Info("[DEBUG] before insert")
 	// Insert network stats in container stats
 	task, err := engine.resolver.ResolveTaskByARN(taskARN)
 	if err != nil {
@@ -773,9 +784,14 @@ func (engine *DockerStatsEngine) ContainerDockerStats(taskARN string, containerI
 			taskARN)
 	}
 
+	seelog.Info("[DEBUG] before check awsvpc")
 	if task.IsNetworkModeAWSVPC() {
+		seelog.Infof("[DEBUG] before get stats, taskToTaskStats: %v", taskToTaskStats)
 		taskStats, ok := taskToTaskStats[taskARN]
 		if ok {
+			seelog.Infof("[DEBUG] in ok, task stats: %v", taskStats)
+			seelog.Infof("[DEBUG] in ok, stats queue: %v", taskStats.StatsQueue)
+			seelog.Infof("[DEBUG] before get network stats, last task stats: %v", taskStats.StatsQueue.GetLastStat())
 			taskNetworkStats := taskStats.StatsQueue.GetLastStat().Networks
 			containerStats.Networks = taskNetworkStats
 			containerNetworkRateStats = taskStats.StatsQueue.GetLastNetworkStatPerSec()
@@ -783,6 +799,8 @@ func (engine *DockerStatsEngine) ContainerDockerStats(taskARN string, containerI
 			seelog.Warnf("Network stats not found for container %s", containerID)
 		}
 	}
+
+	seelog.Info("[DEBUG] before return")
 
 	return containerStats, containerNetworkRateStats, nil
 }

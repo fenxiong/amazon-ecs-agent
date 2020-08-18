@@ -57,5 +57,7 @@ func ContainerStatsHandler(state dockerstate.TaskEngineState, statsEngine stats.
 
 		// v3 handler shares the same container stats response format with v2 handler.
 		v2.WriteContainerStatsResponse(w, taskARN, containerID, statsEngine)
+
+		seelog.Info("[DEBUG] after write response")
 	}
 }
