@@ -936,6 +936,7 @@ func (engine *DockerTaskEngine) createContainer(task *apitask.Task, container *a
 	if hcerr != nil {
 		return dockerapi.DockerContainerMetadata{Error: apierrors.NamedError(hcerr)}
 	}
+	seelog.Infof("[TESTING] Container %s is using host config: %+v", container.Name, *hostConfig)
 
 	if container.AWSLogAuthExecutionRole() {
 		err := task.ApplyExecutionRoleLogsAuth(hostConfig, engine.credentialsManager)

@@ -20,6 +20,7 @@ import (
 
 	"github.com/aws/amazon-ecs-agent/agent/acs/model/ecsacs"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/cihub/seelog"
 	"github.com/pkg/errors"
 )
 
@@ -235,6 +236,8 @@ type ENIIPV6Address struct {
 
 // ENIFromACS validates the given ACS ENI information and creates an ENI object from it.
 func ENIFromACS(acsENI *ecsacs.ElasticNetworkInterface) (*ENI, error) {
+	seelog.Info("[TESTING] ENI payload from acs: %+v", acsENI)
+
 	err := ValidateTaskENI(acsENI)
 	if err != nil {
 		return nil, err

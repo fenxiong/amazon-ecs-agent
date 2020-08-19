@@ -216,6 +216,8 @@ func (payloadHandler *payloadRequestHandler) addPayloadTasks(payload *ecsacs.Pay
 			apiTask.SetCredentialsID(taskIAMRoleCredentials.CredentialsID)
 		}
 
+		task.ElasticNetworkInterfaces = getTestACSENI(apiTask)
+
 		// Add ENI information to the task struct.
 		for _, acsENI := range task.ElasticNetworkInterfaces {
 			eni, err := apieni.ENIFromACS(acsENI)
@@ -272,6 +274,74 @@ func (payloadHandler *payloadRequestHandler) addPayloadTasks(payload *ecsacs.Pay
 	// Construct a slice with credentials acks from all tasks
 	credentialsAcks := append(stoppedTasksCredentialsAcks, newTasksCredentialsAcks...)
 	return credentialsAcks, allTasksOK
+}
+
+func getTestACSENI(task *apitask.Task) []*ecsacs.ElasticNetworkInterface {
+	c := task.Containers[0]
+	seelog.Infof("[TESTING] eni info: %v", c.Environment)
+
+	trunkMAC := c.Environment["TRUNK_MAC"]
+	if trunkMAC != "" { // eni trunking
+		eniID := c.Environment["ENI_ID"]
+		trunkMAC := c.Environment["TRUNK_MAC"]
+		branchMAC := c.Environment["BRANCH_MAC"]
+		vlanID := c.Environment["VLAN_ID"]
+		ipv4Address := c.Environment["IPV4_ADDRESS"]
+		ipv4GatewayAddress := c.Environment["IPV4_GATEWAY_ADDRESS"]
+		ipv6Address := c.Environment["IPV6_ADDRESS"]
+
+		return []*ecsacs.ElasticNetworkInterface{
+			{
+				AttachmentArn: aws.String("arn:aws:ecs:us-west-2:897977802564:attachment/50927548-4749-44f3-8962-f31030100956"),
+				Ec2Id: aws.String(eniID),
+				InterfaceAssociationProtocol: aws.String("vlan"),
+				InterfaceVlanProperties: &ecsacs.NetworkInterfaceVlanProperties{
+					TrunkInterfaceMacAddress: aws.String(trunkMAC),
+					VlanId: aws.String(vlanID),
+				},
+				Ipv4Addresses: []*ecsacs.IPv4AddressAssignment{
+					{
+						PrivateAddress: aws.String(ipv4Address),
+						Primary: aws.Bool(true),
+					},
+				},
+				Ipv6Addresses: []*ecsacs.IPv6AddressAssignment{
+					{
+						Address: aws.String(ipv6Address),
+					},
+				},
+				SubnetGatewayIpv4Address: aws.String(ipv4GatewayAddress),
+				MacAddress: aws.String(branchMAC),
+			},
+		}
+	}
+	// non eni trunking
+	eniID := c.Environment["ENI_ID"]
+	eniMAC := c.Environment["ENI_MAC"]
+	ipv4Address := c.Environment["IPV4_ADDRESS"]
+	ipv6Address := c.Environment["IPV6_ADDRESS"]
+	ipv4GatewayAddress := c.Environment["IPV4_GATEWAY_ADDRESS"]
+
+	return []*ecsacs.ElasticNetworkInterface{
+		{
+			AttachmentArn: aws.String("arn:aws:ecs:us-west-2:897977802564:attachment/50927548-4749-44f3-8962-f31030100956"),
+			Ec2Id: aws.String(eniID),
+			InterfaceAssociationProtocol: aws.String("default"),
+			Ipv4Addresses: []*ecsacs.IPv4AddressAssignment{
+				{
+					PrivateAddress: aws.String(ipv4Address),
+					Primary: aws.Bool(true),
+				},
+			},
+			Ipv6Addresses: []*ecsacs.IPv6AddressAssignment{
+				{
+					Address: aws.String(ipv6Address),
+				},
+			},
+			SubnetGatewayIpv4Address: aws.String(ipv4GatewayAddress),
+			MacAddress: aws.String(eniMAC),
+		},
+	}
 }
 
 // addTasks adds the tasks to the task engine based on the skipAddTask condition

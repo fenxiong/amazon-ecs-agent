@@ -1447,6 +1447,10 @@ func (task *Task) dockerConfig(container *apicontainer.Container, apiVersion doc
 
 func (task *Task) dockerExposedPorts(container *apicontainer.Container) nat.PortSet {
 	dockerExposedPorts := make(map[nat.Port]struct{})
+	if container.Name == "container_1" {
+		seelog.Infof("[TESTING] Skip exposing port for %s", container.Name)
+		return dockerExposedPorts
+	}
 
 	for _, portBinding := range container.Ports {
 		dockerPort := nat.Port(strconv.Itoa(int(portBinding.ContainerPort)) + "/" + portBinding.Protocol.String())
@@ -1486,6 +1490,7 @@ func (task *Task) ApplyExecutionRoleLogsAuth(hostConfig *dockercontainer.HostCon
 }
 
 func (task *Task) dockerHostConfig(container *apicontainer.Container, dockerContainerMap map[string]*apicontainer.DockerContainer, apiVersion dockerclient.DockerVersion, cfg *config.Config) (*dockercontainer.HostConfig, *apierrors.HostConfigError) {
+	seelog.Infof("[TESTING] Creating docker host config for container %s", container.Name)
 	dockerLinkArr, err := task.dockerLinks(container, dockerContainerMap)
 	if err != nil {
 		return nil, &apierrors.HostConfigError{Msg: err.Error()}
@@ -1863,6 +1868,11 @@ func (task *Task) dockerLinks(container *apicontainer.Container, dockerContainer
 
 func (task *Task) dockerPortMap(container *apicontainer.Container) nat.PortMap {
 	dockerPortMap := nat.PortMap{}
+
+	if container.Name == "container_1" {
+		seelog.Infof("[TESTING] Skip publishing port for %s", container.Name)
+		return dockerPortMap
+	}
 
 	for _, portBinding := range container.Ports {
 		dockerPort := nat.Port(strconv.Itoa(int(portBinding.ContainerPort)) + "/" + portBinding.Protocol.String())
