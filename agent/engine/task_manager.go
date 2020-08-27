@@ -426,6 +426,12 @@ func (mtask *managedTask) handleContainerChange(containerChange dockerContainerC
 	container.SetKnownStatus(event.Status)
 	updateContainerMetadata(&event.DockerContainerMetadata, container, mtask.Task)
 
+	if event.Status == apicontainerstatus.ContainerRunning {
+		seelog.Infof("[TESTING] Container %s starts running. Trying docker top on it...", container.Name)
+		// Do docker top and print output
+		// mtask.engine.topContainer(...)
+	}
+
 	if event.Error != nil {
 		proceedAnyway := mtask.handleEventError(containerChange, currentKnownStatus)
 		if !proceedAnyway {
