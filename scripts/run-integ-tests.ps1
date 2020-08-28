@@ -37,17 +37,17 @@ if (-Not ($dockerImages -like "*$BaseImageName*")) {
 Invoke-Expression "docker tag $BaseImageName amazon-ecs-ftest-windows-base:make"
 
 # Prepare dependencies
-Invoke-Expression "${PSScriptRoot}\..\misc\volumes-test\build.ps1"
-Invoke-Expression "${PSScriptRoot}\..\misc\image-cleanup-test-images\build.ps1"
-Invoke-Expression "${PSScriptRoot}\..\misc\stats-windows\build.ps1"
-Invoke-Expression "${PSScriptRoot}\..\misc\container-health-windows\build.ps1"
+#Invoke-Expression "${PSScriptRoot}\..\misc\volumes-test\build.ps1"
+#Invoke-Expression "${PSScriptRoot}\..\misc\image-cleanup-test-images\build.ps1"
+#Invoke-Expression "${PSScriptRoot}\..\misc\stats-windows\build.ps1"
+#Invoke-Expression "${PSScriptRoot}\..\misc\container-health-windows\build.ps1"
 Invoke-Expression "${PSScriptRoot}\..\misc\netkitten\build.ps1"
 
 # Run the tests
 $cwd = (pwd).Path
 try {
   cd "${PSScriptRoot}"
-  $env:ECS_LOGLEVEL = 'debug'; go test -race -tags integration -timeout=40m -v ../agent/engine ../agent/stats ../agent/app
+  $env:ECS_LOGLEVEL_ON_INSTANCE = 'debug'; go test -race -tags integration -run "TestPortForward" -timeout=40m -v ../agent/engine
   $testsExitCode = $LastExitCode
 } finally {
   cd "$cwd"
