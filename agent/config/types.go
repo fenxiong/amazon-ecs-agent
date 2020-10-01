@@ -318,4 +318,7 @@ type Config struct {
 
 	// VolumePluginCapabilities specifies the capabilities of the ecs volume plugin.
 	VolumePluginCapabilities []string
+
+	// OnPrem specifies whether agent is running in on-prem mode.
+	OnPrem BooleanDefaultFalse
 }
