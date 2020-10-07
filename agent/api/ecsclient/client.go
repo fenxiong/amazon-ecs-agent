@@ -44,6 +44,8 @@ const (
 	pollEndpointCacheTTL    = 20 * time.Minute
 	roundtripTimeout        = 5 * time.Second
 	azAttrName              = "ecs.availability-zone"
+	cpuArchAttrName         = "ecs.cpu-architecture"
+	osTypeAttrName          = "ecs.os-type"
 )
 
 // APIECSClient implements ECSClient
@@ -325,12 +327,29 @@ func validateRegisteredAttributes(expectedAttributes, actualAttributes []*ecs.At
 }
 
 func (client *APIECSClient) getAdditionalAttributes() []*ecs.Attribute {
-	return []*ecs.Attribute{
+	attrs := []*ecs.Attribute{
 		{
-			Name:  aws.String("ecs.os-type"),
+			Name:  aws.String(osTypeAttrName),
 			Value: aws.String(config.OSType),
 		},
 	}
+	// Send cpu arch attribute directly when running on-prem. When running on EC2, this is not needed
+	// since the cpu arch is reported via instance identity doc in that case.
+	if client.config.OnPrem.Enabled() {
+		attrs = append(attrs, &ecs.Attribute{
+			Name:  aws.String(cpuArchAttrName),
+			Value: aws.String(getCPUArch()),
+		})
+	}
+	return attrs
+}
+
+func getCPUArch() string {
+	arch := runtime.GOARCH
+	if arch == "amd64" { // If it's amd64, change to x86_64 to match instance identity doc.
+		arch = "x86_64"
+	}
+	return arch
 }
 
 func (client *APIECSClient) getOutpostAttribute(outpostARN string) []*ecs.Attribute {

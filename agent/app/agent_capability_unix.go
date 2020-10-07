@@ -88,6 +88,9 @@ func (agent *ecsAgent) appendNvidiaDriverVersionAttribute(capabilities []*ecs.At
 }
 
 func (agent *ecsAgent) appendENITrunkingCapabilities(capabilities []*ecs.Attribute) []*ecs.Attribute {
+	if agent.cfg.OnPrem.Enabled() {
+		return capabilities
+	}
 	if !agent.cfg.ENITrunkingEnabled.Enabled() {
 		return capabilities
 	}
@@ -120,10 +123,16 @@ func (agent *ecsAgent) appendPIDAndIPCNamespaceSharingCapabilities(capabilities 
 }
 
 func (agent *ecsAgent) appendAppMeshCapabilities(capabilities []*ecs.Attribute) []*ecs.Attribute {
+	if agent.cfg.OnPrem.Enabled() {
+		return capabilities
+	}
 	return appendNameOnlyAttribute(capabilities, attributePrefix+appMeshAttributeSuffix)
 }
 
 func (agent *ecsAgent) appendTaskEIACapabilities(capabilities []*ecs.Attribute) []*ecs.Attribute {
+	if agent.cfg.OnPrem.Enabled() {
+		return capabilities
+	}
 
 	capabilities = appendNameOnlyAttribute(capabilities, attributePrefix+taskEIAAttributeSuffix)
 
@@ -180,5 +189,8 @@ func (agent *ecsAgent) appendGMSACapabilities(capabilities []*ecs.Attribute) []*
 }
 
 func (agent *ecsAgent) appendIPv6Capability(capabilities []*ecs.Attribute) []*ecs.Attribute {
+	if agent.cfg.OnPrem.Enabled() {
+		return capabilities
+	}
 	return appendNameOnlyAttribute(capabilities, attributePrefix+taskENIIPv6AttributeSuffix)
 }

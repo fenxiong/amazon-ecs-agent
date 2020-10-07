@@ -61,6 +61,7 @@ const (
 	capabilityEFS                               = "efs"
 	capabilityEFSAuth                           = "efsAuth"
 	capabilityEnvFilesS3                        = "env-files.s3"
+	capabilityOnPrem                            = "on-prem"
 )
 
 var nameOnlyAttributes = []string{
@@ -131,6 +132,7 @@ var nameOnlyAttributes = []string{
 //    ecs.capability.gmsa
 //    ecs.capability.efsAuth
 //    ecs.capability.env-files.s3
+//    ecs.capability.on-prem
 func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 	var capabilities []*ecs.Attribute
 
@@ -215,6 +217,10 @@ func (agent *ecsAgent) capabilities() ([]*ecs.Attribute, error) {
 		capabilities = agent.appendEFSVolumePluginCapabilities(capabilities, cap)
 	}
 
+	if agent.cfg.OnPrem.Enabled() {
+		capabilities = appendNameOnlyAttribute(capabilities, capabilityPrefix+capabilityOnPrem)
+	}
+
 	return capabilities, nil
 }
 
@@ -289,6 +295,9 @@ func (agent *ecsAgent) appendTaskCPUMemLimitCapabilities(capabilities []*ecs.Att
 }
 
 func (agent *ecsAgent) appendTaskENICapabilities(capabilities []*ecs.Attribute) []*ecs.Attribute {
+	if agent.cfg.OnPrem.Enabled() {
+		return capabilities
+	}
 	if agent.cfg.TaskENIEnabled.Enabled() {
 		// The assumption here is that all of the dependencies for supporting the
 		// Task ENI in the Agent have already been validated prior to the invocation of

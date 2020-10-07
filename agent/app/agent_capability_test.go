@@ -48,21 +48,7 @@ func TestCapabilities(t *testing.T) {
 	mockCredentialsProvider := app_mocks.NewMockProvider(ctrl)
 	mockMobyPlugins := mock_mobypkgwrapper.NewMockPlugins(ctrl)
 	mockPauseLoader := mock_pause.NewMockLoader(ctrl)
-	conf := &config.Config{
-		AvailableLoggingDrivers: []dockerclient.LoggingDriver{
-			dockerclient.JSONFileDriver,
-			dockerclient.SyslogDriver,
-			dockerclient.JournaldDriver,
-			dockerclient.GelfDriver,
-			dockerclient.FluentdDriver,
-		},
-		PrivilegedDisabled:         config.BooleanDefaultFalse{Value: config.ExplicitlyDisabled},
-		SELinuxCapable:             config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
-		AppArmorCapable:            config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
-		TaskENIEnabled:             config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
-		AWSVPCBlockInstanceMetdata: config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
-		TaskCleanupWaitDuration:    config.DefaultConfig().TaskCleanupWaitDuration,
-	}
+	conf := getCapabilitiesTestConfig()
 
 	mockPauseLoader.EXPECT().IsLoaded(gomock.Any()).Return(false, nil).AnyTimes()
 	// Scan() and ListPluginsWithFilters() are tested with
@@ -139,6 +125,93 @@ func TestCapabilities(t *testing.T) {
 			Name:  expected.Name,
 			Value: expected.Value,
 		})
+	}
+}
+
+// Test on-prem capability by checking that when on-prem config is set, unsupported capabilities aren't
+// added, and on-prem capability is added.
+func TestCapabilitiesOnPrem(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := mock_dockerapi.NewMockDockerClient(ctrl)
+	mockCredentialsProvider := app_mocks.NewMockProvider(ctrl)
+	mockMobyPlugins := mock_mobypkgwrapper.NewMockPlugins(ctrl)
+	mockPauseLoader := mock_pause.NewMockLoader(ctrl)
+	cfg := getCapabilitiesTestConfig()
+	cfg.OnPrem = config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled}
+
+	mockPauseLoader.EXPECT().IsLoaded(gomock.Any()).Return(false, nil).AnyTimes()
+	// Scan() and ListPluginsWithFilters() are tested with
+	// AnyTimes() because they are not called in windows.
+	gomock.InOrder(
+		client.EXPECT().SupportedVersions().Return([]dockerclient.DockerVersion{
+			dockerclient.Version_1_17,
+			dockerclient.Version_1_18,
+		}),
+		client.EXPECT().KnownVersions().Return([]dockerclient.DockerVersion{
+			dockerclient.Version_1_17,
+			dockerclient.Version_1_18,
+			dockerclient.Version_1_19,
+		}),
+		mockMobyPlugins.EXPECT().Scan().AnyTimes().Return([]string{}, nil),
+		client.EXPECT().ListPluginsWithFilters(gomock.Any(), gomock.Any(), gomock.Any(),
+			gomock.Any()).AnyTimes().Return([]string{}, nil),
+	)
+
+	unsupportedCapabilityNames := []string{
+		attributePrefix + taskENIAttributeSuffix,
+		attributePrefix + taskENIIPv6AttributeSuffix,
+		attributePrefix + taskENIBlockInstanceMetadataAttributeSuffix,
+		attributePrefix + taskENITrunkingAttributeSuffix,
+		attributePrefix + appMeshAttributeSuffix,
+		attributePrefix + taskEIAAttributeSuffix,
+		attributePrefix + taskEIAWithOptimizedCPU,
+	}
+
+	var unsupportedCapabilities []*ecs.Attribute
+	for _, name := range unsupportedCapabilityNames {
+		unsupportedCapabilities = append(unsupportedCapabilities,
+			&ecs.Attribute{Name: aws.String(name)})
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	// Cancel the context to cancel async routines
+	defer cancel()
+	agent := &ecsAgent{
+		ctx:                ctx,
+		cfg:                cfg,
+		dockerClient:       client,
+		pauseLoader:        mockPauseLoader,
+		credentialProvider: aws_credentials.NewCredentials(mockCredentialsProvider),
+		mobyPlugins:        mockMobyPlugins,
+	}
+	capabilities, err := agent.capabilities()
+	require.NoError(t, err)
+
+	for _, cap := range unsupportedCapabilities {
+		assert.NotContains(t, capabilities, cap)
+	}
+	assert.Contains(t, capabilities, &ecs.Attribute{
+		Name: aws.String(attributePrefix + capabilityOnPrem),
+	})
+}
+
+func getCapabilitiesTestConfig() *config.Config {
+	return &config.Config{
+		AvailableLoggingDrivers: []dockerclient.LoggingDriver{
+			dockerclient.JSONFileDriver,
+			dockerclient.SyslogDriver,
+			dockerclient.JournaldDriver,
+			dockerclient.GelfDriver,
+			dockerclient.FluentdDriver,
+		},
+		PrivilegedDisabled:         config.BooleanDefaultFalse{Value: config.ExplicitlyDisabled},
+		SELinuxCapable:             config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
+		AppArmorCapable:            config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
+		TaskENIEnabled:             config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
+		AWSVPCBlockInstanceMetdata: config.BooleanDefaultFalse{Value: config.ExplicitlyEnabled},
+		TaskCleanupWaitDuration:    config.DefaultConfig().TaskCleanupWaitDuration,
 	}
 }
 
