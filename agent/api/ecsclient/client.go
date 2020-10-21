@@ -214,8 +214,8 @@ func (client *APIECSClient) setInstanceIdentity(registerRequest ecs.RegisterCont
 
 	if client.config.NoIID {
 		seelog.Info("Fetching Instance ID Document has been disabled")
-		registerRequest.InstanceIdentityDocument = &instanceIdentityDoc
-		registerRequest.InstanceIdentityDocumentSignature = &instanceIdentitySignature
+		registerRequest.InstanceIdentityDocument = nil
+		registerRequest.InstanceIdentityDocumentSignature = nil
 		return registerRequest
 	}
 
