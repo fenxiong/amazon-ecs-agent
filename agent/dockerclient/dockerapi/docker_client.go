@@ -743,7 +743,10 @@ func (dg *dockerGoClient) removeContainer(ctx context.Context, dockerID string) 
 func (dg *dockerGoClient) containerMetadata(ctx context.Context, id string) DockerContainerMetadata {
 	ctx, cancel := context.WithTimeout(ctx, dockerclient.InspectContainerTimeout)
 	defer cancel()
+	start := time.Now()
 	dockerContainer, err := dg.InspectContainer(ctx, id, dockerclient.InspectContainerTimeout)
+	elapsed := time.Now().Sub(start)
+	seelog.Infof("[TESTING] Inspecting container %s took %s.", id, elapsed.String())
 	if err != nil {
 		return DockerContainerMetadata{DockerID: id, Error: CannotInspectContainerError{err}}
 	}
