@@ -54,3 +54,7 @@ require (
 	gotest.tools v1.4.0 // indirect
 	honnef.co/go/tools v0.0.0-20190523083050-ea95bdfd59fc
 )
+
+replace (
+	github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20181024032540-785fe99bdb7c+incompatible
+)
