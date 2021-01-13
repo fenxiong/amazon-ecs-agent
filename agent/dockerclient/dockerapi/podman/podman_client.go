@@ -16,15 +16,7 @@ package podman
 import (
 	"context"
 	"fmt"
-	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
-	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
-	"github.com/cihub/seelog"
-	"github.com/containers/libpod/v2/pkg/bindings/containers"
-	"github.com/containers/libpod/v2/pkg/bindings/images"
-	"github.com/containers/libpod/v2/pkg/domain/entities"
-	"github.com/containers/libpod/v2/pkg/specgen"
-	"github.com/docker/docker/api/types/strslice"
-	"github.com/docker/go-connections/nat"
+
 	"io"
 	"os"
 	"strings"
@@ -32,14 +24,23 @@ import (
 
 	apicontainer "github.com/aws/amazon-ecs-agent/agent/api/container"
 	apicontainerstatus "github.com/aws/amazon-ecs-agent/agent/api/container/status"
+	apierrors "github.com/aws/amazon-ecs-agent/agent/api/errors"
 	"github.com/aws/amazon-ecs-agent/agent/config"
 	"github.com/aws/amazon-ecs-agent/agent/dockerclient"
 	. "github.com/aws/amazon-ecs-agent/agent/dockerclient/dockerapi"
+	"github.com/aws/amazon-ecs-agent/agent/utils/retry"
 
-	"github.com/containers/libpod/v2/pkg/bindings"
+	"github.com/cihub/seelog"
+	"github.com/containers/podman/v2/pkg/bindings"
+	"github.com/containers/podman/v2/pkg/bindings/containers"
+	"github.com/containers/podman/v2/pkg/bindings/images"
+	"github.com/containers/podman/v2/pkg/domain/entities"
+	"github.com/containers/podman/v2/pkg/specgen"
 	"github.com/docker/docker/api/types"
 	dockercontainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/strslice"
+	"github.com/docker/go-connections/nat"
 	"github.com/pkg/errors"
 )
 
@@ -427,7 +428,8 @@ func (pm *podmanClient) inspectContainer(ctx context.Context, dockerID string) (
 		StdinOnce:    ctrData.Config.StdinOnce,
 		Env:          ctrData.Config.Env,
 		Cmd:          ctrData.Config.Cmd,
-		Healthcheck:  ctrData.Config.Healthcheck,
+		// TODO: fix type mismatch
+		//Healthcheck:  ctrData.Config.Healthcheck,
 		Image:        ctrData.Config.Image,
 		Volumes:      ctrData.Config.Volumes,
 		WorkingDir:   ctrData.Config.WorkingDir,

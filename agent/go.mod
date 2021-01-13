@@ -13,7 +13,7 @@ require (
 	github.com/containerd/cgroups v0.0.0-20190919134610-bf292b21730f
 	github.com/containernetworking/cni v0.8.0
 	github.com/containernetworking/plugins v0.8.7
-	github.com/containers/podman/v2 v2.2.1 // indirect
+	github.com/containers/podman/v2 v2.2.1
 	github.com/deniswernert/udev v0.0.0-20140626150257-82fe5be8ca5f
 	github.com/didip/tollbooth v3.0.2+incompatible
 	github.com/docker/docker v17.12.0-ce-rc1.0.20201020191947-73dc6a680cdd+incompatible
@@ -42,3 +42,5 @@ require (
 	google.golang.org/grpc v1.32.0 // indirect
 	honnef.co/go/tools v0.0.1-2019.2.3
 )
+
+replace github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20200318231421-30d54e64f643+incompatible
