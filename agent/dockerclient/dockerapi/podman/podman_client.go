@@ -110,7 +110,7 @@ func (pm *podmanClient) WithVersion(dockerclient.DockerVersion) DockerClient {
 }
 
 func (pm *podmanClient) ContainerEvents(context.Context) (<-chan DockerContainerChangeEvent, error) {
-	return nil, errors.New("not implemented")
+	return nil, nil
 }
 
 func (pm *podmanClient) pullImage(ctx context.Context, image string,
