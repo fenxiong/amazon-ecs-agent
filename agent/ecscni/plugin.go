@@ -126,7 +126,7 @@ func (client *cniClient) setupNS(ctx context.Context, cfg *Config) (*current.Res
 			cfg.ContainerID)
 	}
 
-	seelog.Debugf("[ECSCNI] Completed setting up the container namespace: %s", bridgeResult.String())
+	seelog.Debugf("[ECSCNI] Completed setting up the container namespace: %s", bridgeResult.Version())
 
 	if _, err := bridgeResult.GetAsVersion(currentCNISpec); err != nil {
 		seelog.Warnf("[ECSCNI] Unable to convert result to spec version %s; error: %v; result is of version: %s",
@@ -138,7 +138,7 @@ func (client *cniClient) setupNS(ctx context.Context, cfg *Config) (*current.Res
 	if !ok {
 		return nil, errors.Errorf(
 			"cni setup: unable to convert result to expected version '%s'",
-			bridgeResult.String())
+			bridgeResult.Version())
 	}
 
 	return curResult, nil

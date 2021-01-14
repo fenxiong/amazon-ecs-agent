@@ -44,3 +44,6 @@ require (
 )
 
 replace github.com/docker/docker => github.com/docker/docker v17.12.0-ce-rc1.0.20200318231421-30d54e64f643+incompatible
+replace github.com/containernetworking/plugins => github.com/containernetworking/plugins v0.8.6
+replace github.com/containerd/cgroups => github.com/containerd/cgroups v0.0.0-20210114181951-8a68de567b68
+replace github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7

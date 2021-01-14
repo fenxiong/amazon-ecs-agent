@@ -70,8 +70,7 @@ type ImagePullResponsePodman struct {
 // NewPodmanDockerClient creates a new DockerClient implemented with Podman runtime.
 func NewPodmanDockerClient(cfg *config.Config, ctx context.Context) (DockerClient, error) {
 	// Get Podman socket location
-	sock_dir := os.Getenv("XDG_RUNTIME_DIR")
-	socket := "unix:" + sock_dir
+	socket:= os.Getenv("ECS_PODMAN_SOCKET")
 
 	// Connect to Podman socket
 	connText, err := bindings.NewConnection(context.Background(), socket)
@@ -84,13 +83,13 @@ func NewPodmanDockerClient(cfg *config.Config, ctx context.Context) (DockerClien
 
 func (pm *podmanClient) SupportedVersions() []dockerclient.DockerVersion {
 	return []dockerclient.DockerVersion{
-		dockerclient.Version_2_2,
+		dockerclient.Version_1_21,
 	}
 }
 
 func (pm *podmanClient) KnownVersions() []dockerclient.DockerVersion {
 	return []dockerclient.DockerVersion{
-		dockerclient.Version_2_2,
+		dockerclient.Version_1_21,
 	}
 }
 
@@ -292,7 +291,7 @@ func (pm *podmanClient) DescribeContainer(ctx context.Context, dockerID string) 
 func (pm *podmanClient) RemoveContainer(ctx context.Context, id string, timeout time.Duration) error {
 	force := false
 	removeVolume := true
-	return containers.Remove(pm.ctx, id, force, &removeVolume)
+	return containers.Remove(pm.ctx, id, &force, &removeVolume)
 }
 
 func (pm *podmanClient) inspectContainer(ctx context.Context, dockerID string) (*types.ContainerJSON, error) {

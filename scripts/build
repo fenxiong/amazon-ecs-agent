@@ -22,7 +22,7 @@ set -ex
 # the resulting binary should be moved to an output directory
 # The second option exists so that if built in a container, the result can be moved to a shared volume mount
 # The thrid option is for skipping version generation when running cross-platform build, as it results in exec format error
-static=${1:-true}
+static=${1:-false}
 output_directory=${2:-}
 version_gen=${3:-true}
 
@@ -49,7 +49,7 @@ else
 fi
 
 export GO111MODULE=on
-export GOFLAGS=-mod=vendor
+#export GOFLAGS=-mod=vendor
 
 cd "${ROOT}/agent"
 if [[ "${static}" == "true" ]]; then
