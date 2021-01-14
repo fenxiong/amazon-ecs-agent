@@ -34,6 +34,8 @@ import (
 	"github.com/containers/podman/v2/pkg/bindings"
 	"github.com/containers/podman/v2/pkg/bindings/containers"
 	"github.com/containers/podman/v2/pkg/bindings/images"
+	"github.com/containers/podman/v2/pkg/bindings/system"
+	"github.com/containers/podman/v2/pkg/bindings/volumes"
 	"github.com/containers/podman/v2/pkg/domain/entities"
 	"github.com/containers/podman/v2/pkg/specgen"
 	"github.com/docker/docker/api/types"
@@ -288,9 +290,10 @@ func (pm *podmanClient) DescribeContainer(ctx context.Context, dockerID string) 
 
 }
 
-// TODO: implementation.
-func (pm *podmanClient) RemoveContainer(context.Context, string, time.Duration) error {
-	return errors.New("not implemented")
+func (pm *podmanClient) RemoveContainer(ctx context.Context, id string, timeout time.Duration) error {
+	force := false
+	removeVolume := true
+	return containers.Remove(pm.ctx, id, force, &removeVolume)
 }
 
 func (pm *podmanClient) inspectContainer(ctx context.Context, dockerID string) (*types.ContainerJSON, error) {
@@ -490,82 +493,138 @@ func (pm *podmanClient) ListContainers(ctx context.Context, all bool, timeout ti
 	return listContainerResponse
 }
 
-func (pm *podmanClient) ListImages(ctx context.Context, timeout time.Duration) ListImagesResponse {
-	imageSummary, err := images.List(ctx, nil, nil)
+func (pm *podmanClient) ListImages(context.Context, time.Duration) ListImagesResponse {
+	images, err := images.List(pm.ctx, nil, nil)
 	if err != nil {
-		return ListImagesResponse{Error: &CannotListImagesError{err}}
+		return ListImagesResponse{Error: err}
 	}
 
-	var listImageResponses ListImagesResponse
-	var imageIds []string
-	var repoTags []string
-
-	for _, imageResponse := range imageSummary {
-		imageIds = append(imageIds, imageResponse.ID)
-		repoTags = append(repoTags, imageResponse.RepoTags[0])
+	// Convert podman list image result to ListImagesResponse.
+	resp := ListImagesResponse{}
+	for _, img := range images {
+		resp.ImageIDs = append(resp.ImageIDs, img.ID)
+		resp.RepoTags = append(resp.RepoTags, img.RepoTags[0])
 	}
-	listImageResponses.RepoTags = repoTags
-	listImageResponses.ImageIDs = imageIds
-
-	return listImageResponses
+	return resp
 }
 
-// TODO: implementation.
-func (pm *podmanClient) CreateVolume(context.Context, string, string, map[string]string, map[string]string, time.Duration) SDKVolumeResponse {
-	return SDKVolumeResponse{}
+func (pm *podmanClient) CreateVolume(ctx context.Context, name string,
+	driver string,
+	driverOptions map[string]string,
+	labels map[string]string,
+	timeout time.Duration) SDKVolumeResponse {
+	opts := entities.VolumeCreateOptions{
+		Name: name,
+		Driver: driver,
+		Options: driverOptions,
+		Label: labels,
+	}
+	resp, err := volumes.Create(pm.ctx, opts)
+	sdkResp := SDKVolumeResponse{}
+	if err != nil {
+		sdkResp.Error = err
+		return sdkResp
+	}
+	sdkResp.DockerVolume = podmanVolumeConfigToDockerVolume(resp)
+	return sdkResp
 }
 
-// TODO: implementation.
-func (pm *podmanClient) InspectVolume(context.Context, string, time.Duration) SDKVolumeResponse {
-	return SDKVolumeResponse{}
+func podmanVolumeConfigToDockerVolume(pmVol *entities.VolumeConfigResponse) *types.Volume {
+	vol := &types.Volume{}
+	vol.Name = pmVol.Name
+	vol.Driver = pmVol.Driver
+	vol.CreatedAt = pmVol.CreatedAt.String()
+	vol.Labels = pmVol.Labels
+	vol.Mountpoint = pmVol.Mountpoint
+	vol.Options = pmVol.Options
+	vol.Scope = pmVol.Scope
+	return vol
 }
 
-// TODO: implementation.
-func (pm *podmanClient) RemoveVolume(context.Context, string, time.Duration) error {
-	return errors.New("not implemented")
+func (pm *podmanClient) InspectVolume(ctx context.Context, name string, timeout time.Duration) SDKVolumeResponse {
+	resp, err := volumes.Inspect(pm.ctx, name)
+	sdkResp := SDKVolumeResponse{}
+	if err != nil {
+		sdkResp.Error = err
+		return sdkResp
+	}
+	sdkResp.DockerVolume = podmanVolumeConfigToDockerVolume(resp)
+	return sdkResp
 }
 
-// TODO: implementation.
+func (pm *podmanClient) RemoveVolume(ctx context.Context, name string, timeout time.Duration) error {
+	return volumes.Remove(pm.ctx, name, nil)
+}
+
 func (pm *podmanClient) ListPluginsWithFilters(context.Context, bool, []string, time.Duration) ([]string, error) {
-	return nil, errors.New("not implemented")
+	// Podman currently does not support plugins. Return empty result here.
+	return []string{}, nil
 }
 
-// TODO: implementation.
 func (pm *podmanClient) ListPlugins(context.Context, time.Duration, filters.Args) ListPluginsResponse {
+	// Podman currently does not support plugins. Return empty result here.
 	return ListPluginsResponse{}
 }
 
-// TODO: implementation.
-func (pm *podmanClient) Stats(context.Context, string, time.Duration) (<-chan *types.StatsJSON, <-chan error) {
-	return nil, nil
+func (pm *podmanClient) Stats(ctx context.Context, id string, d time.Duration) (<-chan *types.StatsJSON, <-chan error) {
+	_, err := containers.Stats(pm.ctx, []string{id}, nil)
+	statsChan := make(chan *types.StatsJSON)
+	errChan := make(chan error)
+	go func() {
+		errChan <- err
+	}()
+	// Stats is currently not supported for podman container due to error:
+	// "Error: stats is not supported in rootless mode without cgroups v2".
+	// Hence not processing the result and just return the error here.
+	return statsChan, errChan
 }
 
-// TODO: implementation.
 func (pm *podmanClient) Version(context.Context, time.Duration) (string, error) {
-	return "", errors.New("not implemented")
+	// Return an arbitrary Docker Version. This is only used by ACS/TACS handler to report the docker version
+	// on the container instance.
+	return "19.03.13-ce", nil
 }
 
-// TODO: implementation.
 func (pm *podmanClient) APIVersion() (dockerclient.DockerVersion, error) {
-	return dockerclient.Version_1_17, errors.New("not implemented")
+	// Return an arbitrary API version. As far as I can tell, the caller of this method is not using the version
+	// for anything anyway.
+	return dockerclient.Version_1_21, nil
 }
 
-// TODO: implementation.
-func (pm *podmanClient) InspectImage(string) (*types.ImageInspect, error) {
-	return nil, errors.New("not implemented")
+func (pm *podmanClient) InspectImage(id string) (*types.ImageInspect, error) {
+	img, err := images.GetImage(pm.ctx, id, nil)
+	if err != nil {
+		return nil, err
+	}
+	// Convert podman image inspect result to docker image inspect result.
+	resp := &types.ImageInspect{}
+	resp.ID = img.ID
+	resp.RepoTags = img.RepoTags
+	resp.RepoDigests = img.RepoDigests
+	resp.Parent = img.Parent
+	resp.Comment = img.Comment
+
+	return resp, nil
 }
 
-// TODO: implementation.
-func (pm *podmanClient) RemoveImage(context.Context, string, time.Duration) error {
-	return errors.New("not implemented")
+func (pm *podmanClient) RemoveImage(ctx context.Context, imageID string, d time.Duration) error {
+	_, err := images.Remove(pm.ctx, imageID, false)
+	return err
 }
 
-// TODO: implementation.
-func (pm *podmanClient) LoadImage(context.Context, io.Reader, time.Duration) error {
-	return errors.New("not implemented")
+func (pm *podmanClient) LoadImage(ctx context.Context, r io.Reader, d time.Duration) error {
+	_, err := images.Load(pm.ctx, r, nil)
+	return err
 }
 
-// TODO: implementation.
 func (pm *podmanClient) Info(context.Context, time.Duration) (types.Info, error) {
-	return types.Info{}, errors.New("not implemented")
+	pmInfo, err := system.Info(pm.ctx)
+	if err != nil {
+		return types.Info{}, err
+	}
+	seelog.Infof("Got podman info, arch: %s, buildahVersion: %s", pmInfo.Host.Arch, pmInfo.Host.BuildahVersion)
+	// The only thing we want from this API is security option. This is only recently added in podman
+	// https://github.com/containers/podman/commit/04b43ccf64dd5166539743b44a95c9921ddc8a9f and not available in any released
+	// version, so returning empty info here.
+	return types.Info{}, nil
 }
