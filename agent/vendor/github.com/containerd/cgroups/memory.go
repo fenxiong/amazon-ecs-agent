@@ -1,3 +1,19 @@
+/*
+   Copyright The containerd Authors.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package cgroups
 
 import (
@@ -11,9 +27,9 @@ import (
 	"strings"
 	"syscall"
 
-	"golang.org/x/sys/unix"
-
+	v1 "github.com/containerd/cgroups/stats/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"golang.org/x/sys/unix"
 )
 
 func NewMemory(root string) *memoryController {
@@ -81,35 +97,40 @@ func (m *memoryController) Update(path string, resources *specs.LinuxResources) 
 	return m.set(path, settings)
 }
 
-func (m *memoryController) Stat(path string, stats *Stats) error {
+func (m *memoryController) Stat(path string, stats *v1.Metrics) error {
 	f, err := os.Open(filepath.Join(m.Path(path), "memory.stat"))
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	stats.Memory = &MemoryStat{}
+	stats.Memory = &v1.MemoryStat{
+		Usage:     &v1.MemoryEntry{},
+		Swap:      &v1.MemoryEntry{},
+		Kernel:    &v1.MemoryEntry{},
+		KernelTCP: &v1.MemoryEntry{},
+	}
 	if err := m.parseStats(f, stats.Memory); err != nil {
 		return err
 	}
 	for _, t := range []struct {
 		module string
-		entry  *MemoryEntry
+		entry  *v1.MemoryEntry
 	}{
 		{
 			module: "",
-			entry:  &stats.Memory.Usage,
+			entry:  stats.Memory.Usage,
 		},
 		{
 			module: "memsw",
-			entry:  &stats.Memory.Swap,
+			entry:  stats.Memory.Swap,
 		},
 		{
 			module: "kmem",
-			entry:  &stats.Memory.Kernel,
+			entry:  stats.Memory.Kernel,
 		},
 		{
 			module: "kmem.tcp",
-			entry:  &stats.Memory.KernelTCP,
+			entry:  stats.Memory.KernelTCP,
 		},
 	} {
 		for _, tt := range []struct {
@@ -155,7 +176,7 @@ func (m *memoryController) OOMEventFD(path string) (uintptr, error) {
 		return 0, err
 	}
 	defer f.Close()
-	fd, _, serr := unix.RawSyscall(unix.SYS_EVENTFD2, 0, unix.FD_CLOEXEC, 0)
+	fd, _, serr := unix.RawSyscall(unix.SYS_EVENTFD2, 0, unix.EFD_CLOEXEC, 0)
 	if serr != 0 {
 		return 0, serr
 	}
@@ -176,7 +197,7 @@ func writeEventFD(root string, cfd, efd uintptr) error {
 	return err
 }
 
-func (m *memoryController) parseStats(r io.Reader, stat *MemoryStat) error {
+func (m *memoryController) parseStats(r io.Reader, stat *v1.MemoryStat) error {
 	var (
 		raw  = make(map[string]uint64)
 		sc   = bufio.NewScanner(r)
@@ -261,6 +282,10 @@ func getMemorySettings(resources *specs.LinuxResources) []memorySettings {
 			value: mem.Limit,
 		},
 		{
+			name:  "soft_limit_in_bytes",
+			value: mem.Reservation,
+		},
+		{
 			name:  "memsw.limit_in_bytes",
 			value: mem.Swap,
 		},
@@ -274,7 +299,7 @@ func getMemorySettings(resources *specs.LinuxResources) []memorySettings {
 		},
 		{
 			name:  "oom_control",
-			value: getOomControlValue(resources),
+			value: getOomControlValue(mem),
 		},
 		{
 			name:  "swappiness",
@@ -295,8 +320,8 @@ func checkEBUSY(err error) error {
 	return err
 }
 
-func getOomControlValue(resources *specs.LinuxResources) *int64 {
-	if resources.DisableOOMKiller != nil && *resources.DisableOOMKiller {
+func getOomControlValue(mem *specs.LinuxMemory) *int64 {
+	if mem.DisableOOMKiller != nil && *mem.DisableOOMKiller {
 		i := int64(1)
 		return &i
 	}
