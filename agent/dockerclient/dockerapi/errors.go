@@ -79,15 +79,15 @@ func (err DockerStateError) ErrorName() string {
 
 // CannotGetDockerClientError is a type for failing to get a specific Docker client
 type CannotGetDockerClientError struct {
-	version dockerclient.DockerVersion
-	err     error
+	Version dockerclient.DockerVersion
+	Err     error
 }
 
 func (c CannotGetDockerClientError) Error() string {
-	if c.version != "" {
-		return "(v" + string(c.version) + ") - " + c.err.Error()
+	if c.Version != "" {
+		return "(v" + string(c.Version) + ") - " + c.Err.Error()
 	}
-	return c.err.Error()
+	return c.Err.Error()
 }
 
 // ErrorName returns the name of the CannotGetDockerClientError.

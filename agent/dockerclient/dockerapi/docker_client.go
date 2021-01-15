@@ -310,7 +310,7 @@ func (dg *dockerGoClient) PullImage(ctx context.Context, image string,
 				}
 				return err
 			})
-		response <- DockerContainerMetadata{Error: wrapPullErrorAsNamedError(err)}
+		response <- DockerContainerMetadata{Error: WrapPullErrorAsNamedError(err)}
 	}()
 
 	select {
@@ -329,7 +329,7 @@ func (dg *dockerGoClient) PullImage(ctx context.Context, image string,
 	}
 }
 
-func wrapPullErrorAsNamedError(err error) apierrors.NamedError {
+func WrapPullErrorAsNamedError(err error) apierrors.NamedError {
 	var retErr apierrors.NamedError
 	if err != nil {
 		engErr, ok := err.(apierrors.NamedError)
@@ -346,12 +346,12 @@ func (dg *dockerGoClient) pullImage(ctx context.Context, image string,
 	seelog.Debugf("DockerGoClient: pulling image: %s", image)
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return CannotGetDockerClientError{version: dg.version, err: err}
+		return CannotGetDockerClientError{Version: dg.version, Err: err}
 	}
 
 	sdkAuthConfig, err := dg.getAuthdata(image, authData)
 	if err != nil {
-		return wrapPullErrorAsNamedError(err)
+		return WrapPullErrorAsNamedError(err)
 	}
 	// encode auth data
 	var buf bytes.Buffer
@@ -539,7 +539,7 @@ func (dg *dockerGoClient) createContainer(ctx context.Context,
 	name string) DockerContainerMetadata {
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return DockerContainerMetadata{Error: CannotGetDockerClientError{version: dg.version, err: err}}
+		return DockerContainerMetadata{Error: CannotGetDockerClientError{Version: dg.version, Err: err}}
 	}
 
 	dockerContainer, err := client.ContainerCreate(ctx, config, hostConfig, &network.NetworkingConfig{}, name)
@@ -576,7 +576,7 @@ func (dg *dockerGoClient) StartContainer(ctx context.Context, id string, timeout
 func (dg *dockerGoClient) startContainer(ctx context.Context, id string) DockerContainerMetadata {
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return DockerContainerMetadata{Error: CannotGetDockerClientError{version: dg.version, err: err}}
+		return DockerContainerMetadata{Error: CannotGetDockerClientError{Version: dg.version, Err: err}}
 	}
 
 	err = client.ContainerStart(ctx, id, types.ContainerStartOptions{})
@@ -607,7 +607,8 @@ func DockerStateToState(state *types.ContainerState) apicontainerstatus.Containe
 	return apicontainerstatus.ContainerStopped
 }
 
-func (dg *dockerGoClient) DescribeContainer(ctx context.Context, dockerID string) (apicontainerstatus.ContainerStatus, DockerContainerMetadata) {
+func (dg *dockerGoClient) DescribeContainer(ctx context.Context, dockerID string) (apicontainerstatus.ContainerStatus,
+	DockerContainerMetadata) {
 	dockerContainer, err := dg.InspectContainer(ctx, dockerID, dockerclient.InspectContainerTimeout)
 	if err != nil {
 		return apicontainerstatus.ContainerStatusNone, DockerContainerMetadata{Error: CannotDescribeContainerError{err}}
@@ -682,7 +683,7 @@ func (dg *dockerGoClient) StopContainer(ctx context.Context, dockerID string, ti
 func (dg *dockerGoClient) stopContainer(ctx context.Context, dockerID string, timeout time.Duration) DockerContainerMetadata {
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return DockerContainerMetadata{Error: CannotGetDockerClientError{version: dg.version, err: err}}
+		return DockerContainerMetadata{Error: CannotGetDockerClientError{Version: dg.version, Err: err}}
 	}
 	err = client.ContainerStop(ctx, dockerID, &timeout)
 	metadata := dg.containerMetadata(ctx, dockerID)
@@ -1135,7 +1136,7 @@ func (dg *dockerGoClient) createVolume(ctx context.Context,
 	labels map[string]string) SDKVolumeResponse {
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return SDKVolumeResponse{DockerVolume: nil, Error: &CannotGetDockerClientError{version: dg.version, err: err}}
+		return SDKVolumeResponse{DockerVolume: nil, Error: &CannotGetDockerClientError{Version: dg.version, Err: err}}
 	}
 
 	volumeOptions := volume.VolumeCreateBody{
@@ -1183,7 +1184,7 @@ func (dg *dockerGoClient) inspectVolume(ctx context.Context, name string) SDKVol
 	if err != nil {
 		return SDKVolumeResponse{
 			DockerVolume: nil,
-			Error:        &CannotGetDockerClientError{version: dg.version, err: err}}
+			Error:        &CannotGetDockerClientError{Version: dg.version, Err: err}}
 	}
 
 	dockerVolume, err := client.VolumeInspect(ctx, name)
@@ -1223,7 +1224,7 @@ func (dg *dockerGoClient) RemoveVolume(ctx context.Context, name string, timeout
 func (dg *dockerGoClient) removeVolume(ctx context.Context, name string) error {
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return &CannotGetDockerClientError{version: dg.version, err: err}
+		return &CannotGetDockerClientError{Version: dg.version, Err: err}
 	}
 
 	err = client.VolumeRemove(ctx, name, false)
@@ -1284,7 +1285,7 @@ func (dg *dockerGoClient) ListPlugins(ctx context.Context, timeout time.Duration
 func (dg *dockerGoClient) listPlugins(ctx context.Context, filters filters.Args) ListPluginsResponse {
 	client, err := dg.sdkDockerClient()
 	if err != nil {
-		return ListPluginsResponse{Plugins: nil, Error: &CannotGetDockerClientError{version: dg.version, err: err}}
+		return ListPluginsResponse{Plugins: nil, Error: &CannotGetDockerClientError{Version: dg.version, Err: err}}
 	}
 
 	plugins, err := client.PluginList(ctx, filters)
