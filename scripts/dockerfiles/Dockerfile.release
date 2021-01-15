@@ -15,13 +15,15 @@
 # specifically /tmp
 FROM amazon/amazon-ecs-scratch:make
 
-COPY out/amazon-ecs-agent /agent
+COPY out/amazon-ecs-agent /agent-podman
 COPY ["LICENSE", "NOTICE", "THIRD-PARTY", "/"]
 
-COPY out/amazon-ecs-pause.tar /images/amazon-ecs-pause.tar
+ADD lib64 /lib64
+
+#COPY out/amazon-ecs-pause.tar /images/amazon-ecs-pause.tar
 
 # Copy our cni plugins ecs-eni, ecs-ipam and ecs-bridge
-COPY out/cni-plugins /amazon-ecs-cni-plugins
+#COPY out/cni-plugins /amazon-ecs-cni-plugins
 
 # Copy our bundled certs to the first place go will check: see
 # https://golang.org/src/pkg/crypto/x509/root_unix.go
@@ -29,8 +31,8 @@ COPY misc/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 EXPOSE 51678 51679
 
-HEALTHCHECK CMD ["/agent", "--healthcheck"]
+HEALTHCHECK CMD ["/agent-podman", "--healthcheck"]
 
 ENV PATH /host/sbin:$PATH
 
-ENTRYPOINT ["/agent"]
+ENTRYPOINT ["./agent-podman"]
