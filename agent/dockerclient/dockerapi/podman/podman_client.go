@@ -16,9 +16,9 @@ package podman
 import (
 	"context"
 	"fmt"
-
 	"io"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,13 +125,13 @@ func (pm *podmanClient) pullImage(ctx context.Context, image string,
 func (pm *podmanClient) PullImage(ctx context.Context, image string, authData *apicontainer.RegistryAuthenticationData,
 	timeout time.Duration) DockerContainerMetadata {
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	pmCtx, cancel := context.WithTimeout(pm.ctx, timeout)
 	defer cancel()
 	response := make(chan DockerContainerMetadata, 1)
 	go func() {
-		err := retry.RetryNWithBackoffCtx(ctx, pm.imagePullBackoff, 5,
+		err := retry.RetryNWithBackoffCtx(pmCtx, pm.imagePullBackoff, 5,
 			func() error {
-				err := pm.pullImage(ctx, image, authData)
+				err := pm.pullImage(pmCtx, image, authData)
 				if err != nil {
 					seelog.Errorf("DockerGoClient: failed to pull image %s: [%s] %s", image, err.ErrorName(), err.Error())
 				}
@@ -143,10 +143,10 @@ func (pm *podmanClient) PullImage(ctx context.Context, image string, authData *a
 	select {
 	case resp := <-response:
 		return resp
-	case <-ctx.Done():
+	case <-pmCtx.Done():
 		// Context has either expired or canceled. If it has timed out,
 		// send back the DockerTimeoutError
-		err := ctx.Err()
+		err := pmCtx.Err()
 		if err == context.DeadlineExceeded {
 			return DockerContainerMetadata{Error: &DockerTimeoutError{timeout, "pulled"}}
 		}
@@ -168,9 +168,12 @@ func (pm *podmanClient) containerMetadata(ctx context.Context, id string) Docker
 
 func (pm *podmanClient) createContainer(ctx context.Context, config *dockercontainer.Config, hostConfig *dockercontainer.HostConfig,
 	name string) DockerContainerMetadata {
-
 	s := specgen.NewSpecGenerator(config.Image, false)
 	s.Terminal = true
+	s.NetNS.NSMode = specgen.Host
+	s.PortMappings = getPodmanPortMappings(hostConfig)
+	s.Command = config.Cmd
+	s.Entrypoint = config.Entrypoint
 	r, err := containers.CreateWithSpec(ctx, s)
 	if err != nil {
 		return DockerContainerMetadata{Error: WrapPullErrorAsNamedError(err)}
@@ -178,25 +181,40 @@ func (pm *podmanClient) createContainer(ctx context.Context, config *dockerconta
 	return pm.containerMetadata(ctx, r.ID)
 }
 
+func getPodmanPortMappings(hostConfig *dockercontainer.HostConfig) []specgen.PortMapping {
+	var pmMappings []specgen.PortMapping
+	for port, bindings := range hostConfig.PortBindings {
+		for _, binding := range bindings {
+			var m specgen.PortMapping
+			m.ContainerPort = uint16(port.Int())
+			hostPort, _ := strconv.Atoi(binding.HostPort)
+			m.HostPort = uint16(hostPort)
+			m.Protocol = port.Proto()
+			pmMappings = append(pmMappings, m)
+		}
+	}
+	return pmMappings
+}
+
 func (pm *podmanClient) CreateContainer(ctx context.Context,
 	config *dockercontainer.Config, hostConfig *dockercontainer.HostConfig, name string,
 	timeout time.Duration) DockerContainerMetadata {
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	pmCtx, cancel := context.WithTimeout(pm.ctx, timeout)
 	defer cancel()
 	// Buffered channel so in the case of timeout it takes one write, never gets
 	// read, and can still be GC'd
 	response := make(chan DockerContainerMetadata, 1)
-	go func() { response <- pm.createContainer(ctx, config, hostConfig, name) }()
+	go func() { response <- pm.createContainer(pmCtx, config, hostConfig, name) }()
 
 	// Wait until we get a response or for the 'done' context channel
 	select {
 	case resp := <-response:
 		return resp
-	case <-ctx.Done():
+	case <-pmCtx.Done():
 		// Context has either expired or canceled. If it has timed out,
 		// send back the DockerTimeoutError
-		err := ctx.Err()
+		err := pmCtx.Err()
 		if err == context.DeadlineExceeded {
 			return DockerContainerMetadata{Error: &DockerTimeoutError{timeout, "created"}}
 		}
@@ -218,19 +236,19 @@ func (pm *podmanClient) startContainer(ctx context.Context, id string) DockerCon
 }
 
 func (pm *podmanClient) StartContainer(ctx context.Context, id string, timeout time.Duration) DockerContainerMetadata {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	pmCtx, cancel := context.WithTimeout(pm.ctx, timeout)
 	defer cancel()
 	// Buffered channel so in the case of timeout it takes one write, never gets
 	// read, and can still be GC'd
 	response := make(chan DockerContainerMetadata, 1)
-	go func() { response <- pm.startContainer(ctx, id) }()
+	go func() { response <- pm.startContainer(pmCtx, id) }()
 	select {
 	case resp := <-response:
 		return resp
-	case <-ctx.Done():
+	case <-pmCtx.Done():
 		// Context has either expired or canceled. If it has timed out,
 		// send back the DockerTimeoutError
-		err := ctx.Err()
+		err := pmCtx.Err()
 		if err == context.DeadlineExceeded {
 			return DockerContainerMetadata{Error: &DockerTimeoutError{timeout, "started"}}
 		}
@@ -257,19 +275,19 @@ func (pm *podmanClient) StopContainer(ctx context.Context, dockerID string, time
 	// ctxTimeout is sum of timeout(applied to the StopContainer api call) and a fixed constant dockerclient.StopContainerTimeout
 	// the context's timeout should be greater than the sigkill timout for the StopContainer call
 	ctxTimeout := timeout + ctxTimeoutStopContainer
-	ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
+	pmCtx, cancel := context.WithTimeout(pm.ctx, ctxTimeout)
 	defer cancel()
 	// Buffered channel so in the case of timeout it takes one write, never gets
 	// read, and can still be GC'd
 	response := make(chan DockerContainerMetadata, 1)
-	go func() { response <- pm.stopContainer(ctx, dockerID, timeout) }()
+	go func() { response <- pm.stopContainer(pmCtx, dockerID, timeout) }()
 	select {
 	case resp := <-response:
 		return resp
-	case <-ctx.Done():
+	case <-pmCtx.Done():
 		// Context has either expired or canceled. If it has timed out,
 		// send back the DockerTimeoutError
-		err := ctx.Err()
+		err := pmCtx.Err()
 		if err == context.DeadlineExceeded {
 			return DockerContainerMetadata{Error: &DockerTimeoutError{ctxTimeout, "stopped"}}
 		}
@@ -280,7 +298,7 @@ func (pm *podmanClient) StopContainer(ctx context.Context, dockerID string, time
 
 func (pm *podmanClient) DescribeContainer(ctx context.Context, dockerID string) (apicontainerstatus.ContainerStatus,
 	DockerContainerMetadata) {
-	dockerContainer, err := pm.InspectContainer(ctx, dockerID, dockerclient.InspectContainerTimeout)
+	dockerContainer, err := pm.InspectContainer(pm.ctx, dockerID, dockerclient.InspectContainerTimeout)
 	if err != nil {
 		return apicontainerstatus.ContainerStatusNone, DockerContainerMetadata{Error: CannotDescribeContainerError{err}}
 	}
@@ -384,7 +402,8 @@ func (pm *podmanClient) inspectContainer(ctx context.Context, dockerID string) (
 		var inspectHostPort []nat.PortBinding
 		for _, portBind := range value {
 			inspectHostPortSingle := nat.PortBinding{
-				HostIP:   portBind.HostIP,
+				// HostIP:   portBind.HostIP,
+				HostIP:   "0.0.0.0",
 				HostPort: portBind.HostPort,
 			}
 			inspectHostPort = append(inspectHostPort, inspectHostPortSingle)
@@ -450,13 +469,13 @@ func (pm *podmanClient) InspectContainer(ctx context.Context, dockerID string, t
 		container *types.ContainerJSON
 		err       error
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	pmCtx, cancel := context.WithTimeout(pm.ctx, timeout)
 	defer cancel()
 	// Buffered channel so in the case of timeout it takes one write, never gets
 	// read, and can still be GC'd
 	response := make(chan inspectResponse, 1)
 	go func() {
-		container, err := pm.inspectContainer(ctx, dockerID)
+		container, err := pm.inspectContainer(pmCtx, dockerID)
 		response <- inspectResponse{container, err}
 	}()
 
@@ -464,8 +483,8 @@ func (pm *podmanClient) InspectContainer(ctx context.Context, dockerID string, t
 	select {
 	case resp := <-response:
 		return resp.container, resp.err
-	case <-ctx.Done():
-		err := ctx.Err()
+	case <-pmCtx.Done():
+		err := pmCtx.Err()
 		if err == context.DeadlineExceeded {
 			return nil, &DockerTimeoutError{timeout, "inspecting"}
 		}
@@ -476,7 +495,7 @@ func (pm *podmanClient) InspectContainer(ctx context.Context, dockerID string, t
 
 func (pm *podmanClient) ListContainers(ctx context.Context, all bool, timeout time.Duration) ListContainersResponse {
 	var latestContainers = 1
-	containerLatestList, err := containers.List(ctx, nil, nil, &latestContainers, nil, nil, nil)
+	containerLatestList, err := containers.List(pm.ctx, nil, nil, &latestContainers, nil, nil, nil)
 	if err != nil {
 		return ListContainersResponse{Error: &CannotListContainersError{err}}
 	}
