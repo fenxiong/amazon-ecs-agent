@@ -40,8 +40,8 @@ const (
 
 	// drainEventsFrequency is the frequency at the which unsent events batched
 	// by the task handler are sent to the backend
-	minDrainEventsFrequency = 10 * time.Second
-	maxDrainEventsFrequency = 30 * time.Second
+	minDrainEventsFrequency = 1 * time.Second
+	maxDrainEventsFrequency = 2 * time.Second
 
 	submitStateBackoffMin            = time.Second
 	submitStateBackoffMax            = 30 * time.Second
