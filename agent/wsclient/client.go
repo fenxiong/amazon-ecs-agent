@@ -145,6 +145,18 @@ type MakeRequestHookFunc func([]byte) ([]byte, error)
 // 'MakeRequest' can be made after calling this, but responses will not be
 // receivable until 'Serve' is also called.
 func (cs *ClientServerImpl) Connect() error {
+	// Ensure that HTTPS_PROXY gets set if HTTP_PROXY is set
+	// Go 1.16 - The ProxyFromEnvironment function no longer returns the setting of the HTTP_PROXY environment
+	// variable for https:// URLs when HTTPS_PROXY is unset.
+	// https://golang.org/doc/go1.16
+	httpProxy := os.Getenv("HTTP_PROXY")
+	if httpProxy != "" {
+		seelog.Debugf("=== HTTP_PROXY is: %s in httpclient", httpProxy)
+		os.Setenv("HTTPS_PROXY", httpProxy)
+		httpsProxy := os.Getenv("HTTPS_PROXY")
+		seelog.Infof("=== HTTPS_PROXY is set to: %s in httpclient", httpsProxy)
+	}
+
 	seelog.Infof("Establishing a Websocket connection to %s", cs.URL)
 	parsedURL, err := url.Parse(cs.URL)
 	if err != nil {
@@ -217,6 +229,15 @@ func (cs *ClientServerImpl) Connect() error {
 		return errors.Wrapf(err, "websocket client: unable to dial %s response: %s",
 			parsedURL.Host, string(resp))
 	}
+
+	// These lines are added to test http and https proxy settings
+	req, _ := http.NewRequest("GET", "http://www.amazon.com", nil)
+	prox, err:= http.ProxyFromEnvironment(req)
+	seelog.Debugf("=== Testing http request - proxy setting from http.ProxyFromEnvironment: %v+, err: %v", prox, err)
+
+	reqs, _ := http.NewRequest("GET", "https://www.amazon.com", nil)
+	proxs, errs:= http.ProxyFromEnvironment(reqs)
+	seelog.Debugf("=== Testing https request - proxy setting from http.ProxyFromEnvironment: %v+, err: %v", proxs, errs)
 
 	cs.writeLock.Lock()
 	defer cs.writeLock.Unlock()

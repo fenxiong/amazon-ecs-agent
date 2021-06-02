@@ -18,8 +18,10 @@ package httpclient
 import (
 	"crypto/tls"
 	"fmt"
+	"github.com/cihub/seelog"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/aws/amazon-ecs-agent/agent/config"
@@ -55,6 +57,18 @@ func (client *ecsRoundTripper) CancelRequest(req *http.Request) {
 
 // New returns an ECS httpClient with a roundtrip timeout of the given duration
 func New(timeout time.Duration, insecureSkipVerify bool) *http.Client {
+	// Ensure that HTTPS_PROXY gets set if HTTP_PROXY is set
+	// Go 1.16 - The ProxyFromEnvironment function no longer returns the setting of the HTTP_PROXY environment
+	// variable for https:// URLs when HTTPS_PROXY is unset.
+	// https://golang.org/doc/go1.16
+	httpProxy := os.Getenv("HTTP_PROXY")
+	if httpProxy != "" {
+		seelog.Debugf("=== HTTP_PROXY is: %s in httpclient", httpProxy)
+		os.Setenv("HTTPS_PROXY", httpProxy)
+		httpsProxy := os.Getenv("HTTPS_PROXY")
+		seelog.Infof("=== HTTPS_PROXY is set to: %s in httpclient", httpsProxy)
+	}
+
 	// Transport is the transport requests will be made over
 	// Note, these defaults are taken from the golang http library. We do not
 	// explicitly do not use theirs to avoid changing their behavior.
@@ -75,6 +89,15 @@ func New(timeout time.Duration, insecureSkipVerify bool) *http.Client {
 		Transport: &ecsRoundTripper{insecureSkipVerify, transport},
 		Timeout:   timeout,
 	}
+
+	// These lines are added to test http and https proxy settings
+	req, _ := http.NewRequest("GET", "http://www.amazon.com", nil)
+	prox, err:= http.ProxyFromEnvironment(req)
+	seelog.Debugf("=== Testing http request - proxy setting from http.ProxyFromEnvironment: %v+, err: %v", prox, err)
+
+	reqs, _ := http.NewRequest("GET", "https://www.amazon.com", nil)
+	proxs, errs:= http.ProxyFromEnvironment(reqs)
+	seelog.Debugf("=== Testing https request - proxy setting from http.ProxyFromEnvironment: %v+, err: %v", proxs, errs)
 
 	return client
 }
