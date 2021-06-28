@@ -51,6 +51,7 @@ func init() {
 		ecsacs.TaskManifestMessage{},
 		ecsacs.TaskStopVerificationAck{},
 		ecsacs.TaskStopVerificationMessage{},
+		ecsacs.DynamicConfigMessage{},
 	}
 }
 

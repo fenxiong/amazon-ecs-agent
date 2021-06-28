@@ -278,6 +278,27 @@
       }
     },
     "Double":{"type":"double"},
+    "DynamicConfigKeyValue":{
+      "type":"structure",
+      "members":{
+        "key":{"shape":"String"},
+        "value":{"shape":"String"}
+      }
+    },
+    "DynamicConfigList":{
+      "type":"list",
+      "member":{"shape":"DynamicConfigKeyValue"}
+    },
+    "DynamicConfigMessage":{
+      "type":"structure",
+      "members":{
+        "containerInstanceArn":{"shape":"String"},
+        "clusterArn":{"shape":"String"},
+        "configs":{"shape":"DynamicConfigList"},
+        "generatedAt":{"shape":"Long"},
+        "messageId":{"shape":"String"}
+      }
+    },
     "ECRAuthData":{
       "type":"structure",
       "members":{

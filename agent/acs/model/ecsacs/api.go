@@ -482,6 +482,48 @@ func (s DockerVolumeConfiguration) GoString() string {
 	return s.String()
 }
 
+type DynamicConfigKeyValue struct {
+	_ struct{} `type:"structure"`
+
+	Key *string `locationName:"key" type:"string"`
+
+	Value *string `locationName:"value" type:"string"`
+}
+
+// String returns the string representation
+func (s DynamicConfigKeyValue) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DynamicConfigKeyValue) GoString() string {
+	return s.String()
+}
+
+type DynamicConfigMessage struct {
+	_ struct{} `type:"structure"`
+
+	ClusterArn *string `locationName:"clusterArn" type:"string"`
+
+	Configs []*DynamicConfigKeyValue `locationName:"configs" type:"list"`
+
+	ContainerInstanceArn *string `locationName:"containerInstanceArn" type:"string"`
+
+	GeneratedAt *int64 `locationName:"generatedAt" type:"long"`
+
+	MessageId *string `locationName:"messageId" type:"string"`
+}
+
+// String returns the string representation
+func (s DynamicConfigMessage) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DynamicConfigMessage) GoString() string {
+	return s.String()
+}
+
 type ECRAuthData struct {
 	_ struct{} `type:"structure"`
 

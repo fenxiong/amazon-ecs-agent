@@ -343,6 +343,13 @@ func (acsSession *session) startACSSession(client wsclient.ClientServer) error {
 
 	client.AddRequestHandler(heartbeatHandler.handlerFunc())
 
+	dynamicConfigHandler := newDynamicConfigHandler(cfg.Cluster, acsSession.containerInstanceARN, acsSession.ctx, client)
+	defer dynamicConfigHandler.clearAcks()
+	dynamicConfigHandler.start()
+	defer dynamicConfigHandler.stop()
+
+	client.AddRequestHandler(dynamicConfigHandler.handlerFunc())
+
 	updater.AddAgentUpdateHandlers(client, cfg, acsSession.state, acsSession.dataClient, acsSession.taskEngine)
 
 	err := client.Connect()
