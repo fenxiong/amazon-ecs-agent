@@ -811,6 +811,10 @@ func (dg *dockerGoClient) containerMetadata(ctx context.Context, id string) Dock
 	ctx, cancel := context.WithTimeout(ctx, dockerclient.InspectContainerTimeout)
 	defer cancel()
 	dockerContainer, err := dg.InspectContainer(ctx, id, dockerclient.InspectContainerTimeout)
+	if dockerContainer.State.Status == "exited" {
+		seelog.Info("[TESTING] inspecting an exited container [%s]. return timeout error instead", dockerContainer.Name)
+		err = &DockerTimeoutError{30 * time.Second, "inspecting"}
+	}
 	if err != nil {
 		return DockerContainerMetadata{DockerID: id, Error: CannotInspectContainerError{err}}
 	}
