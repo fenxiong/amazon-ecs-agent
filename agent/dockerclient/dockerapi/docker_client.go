@@ -1039,6 +1039,7 @@ func (dg *dockerGoClient) handleContainerEvents(ctx context.Context,
 // setExitCodeFromEvent tries to get exit code from event and stores it in metadata, if metadata doesn't
 // contain the exit code already.
 func setExitCodeFromEvent(event *events.Message, metadata *DockerContainerMetadata) {
+	seelog.Infof("In setExitCodeFromEvent")
 	// exit code is only available from die event.
 	if metadata.ExitCode != nil || event.Status != dockerContainerDieEvent {
 		return
@@ -1054,6 +1055,7 @@ func setExitCodeFromEvent(event *events.Message, metadata *DockerContainerMetada
 		return
 	}
 	metadata.ExitCode = &code
+	seelog.Infof("Setting exit code in metadata to: %d", code)
 }
 
 // ListContainers returns a slice of container IDs.

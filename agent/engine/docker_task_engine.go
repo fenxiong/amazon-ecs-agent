@@ -466,6 +466,12 @@ func (engine *DockerTaskEngine) filterTasksToStartUnsafe(tasks []*apitask.Task) 
 
 // updateContainerMetadata sets the container metadata from the docker inspect
 func updateContainerMetadata(metadata *dockerapi.DockerContainerMetadata, container *apicontainer.Container, task *apitask.Task) {
+	seelog.Infof("In updateContainerMetadata, container: %s, metadata: %v", container.Name, *metadata)
+	if metadata.ExitCode != nil {
+		seelog.Infof("exit code: %d", *metadata.ExitCode)
+	} else {
+		seelog.Info("exit code is nil")
+	}
 	container.SetCreatedAt(metadata.CreatedAt)
 	container.SetStartedAt(metadata.StartedAt)
 	container.SetFinishedAt(metadata.FinishedAt)
